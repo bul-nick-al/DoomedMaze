@@ -6,56 +6,13 @@ module DoomedMaze
     ) where
 
 import CodeWorld
+import Maps
+import Consts
+import Vectors
 import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.Text as T
 
-{- VECTORS -}
-
-i2d :: Int -> Double
-i2d = fromIntegral
-
-normalized :: Vector -> Vector
-normalized v = if len < 1e-6 then (0,0) else scaledVector (1 / len) v
- where
-  len = vectorLength v
-
-angleBetween :: Vector -> Vector -> Double
-angleBetween u@(ux, uy) v@(vx, vy) = atan2 det dot
- where
-  det = ux * vy - vx * uy
-  dot = dotProduct u v
-
-{- MAP -}
-
-type WallType = Int
-type Map = A.Array (Int, Int) WallType
-
-parseMap :: [String] -> Map
-parseMap rows =
-  A.array ((0,0), (w-1,h-1)) (concat (zipWith parseRow [0..] rows))
- where
-  w = length (head rows)
-  h = length rows
-  parseRow j row = zipWith (parseCell j) [0..] row
-  parseCell j i cell = ((i,j), read [cell])
-
-testMap ::[String]
-testMap =
-  [ "111111111111111111111111"
-  , "100000100000000010000001"
-  , "100000100022000010000001"
-  , "100300100022000010000001"
-  , "100000100000000010000001"
-  , "100000100000000010000001"
-  , "100111111000011110000001"
-  , "100000000000000000000001"
-  , "100000000000000000000001"
-  , "100030000003000000030001"
-  , "100000000000000000000001"
-  , "100000000000000000000001"
-  , "111111111111111111111111"
-  ]
 
 {- GAME STATE -}
 
@@ -145,16 +102,6 @@ collision m pos cameraDir rayDir =
 
 {- RENDERING -}
 
-screenWidth, screenHeight :: Int
-screenWidth = 80
-screenHeight = 60
-
-fov :: Double
-fov = pi / 4
-
-halfScreenWidth, halfScreenHeight :: Int
-halfScreenWidth = screenWidth `div` 2
-halfScreenHeight = screenHeight `div` 2
 
 render :: State -> Picture
 render state = hud state & world state
