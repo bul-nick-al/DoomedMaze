@@ -122,10 +122,21 @@ collision m pos cameraDir rayDir =
 
 {- RENDERING -}
 
+drawFloor:: Picture
+drawFloor = translated 0 7.5 (colored black (solidRectangle sWidth (sHeight)))
+  where 
+    sWidth = fromIntegral 20
+    sHeight = fromIntegral 15
+
+drawCeiling :: Picture
+drawCeiling = translated 0 (-7.5) (colored brown (solidRectangle sWidth (sHeight)))
+  where 
+    sWidth = fromIntegral 20
+    sHeight = fromIntegral 15
 
 render :: State -> Picture
 render state = lettering (fromString (show (exitReached (worldMap state) (playerPos state))))
-                <> hud state & world state
+                <> hud state & world state <> drawFloor <> drawCeiling
 
 world :: State -> Picture
 world State{..} =
