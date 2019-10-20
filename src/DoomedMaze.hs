@@ -30,6 +30,8 @@ data State = State
 
 exitReached :: Map -> Vector -> Bool
 exitReached m (posX, posY) = (m A.! (round posX,round posY)) == 4
+
+
 handle :: Event -> State -> State
 handle e w@(State {..}) = handle' e
  where
@@ -42,21 +44,27 @@ handle e w@(State {..}) = handle' e
                , playerDir = (1,1)
                , keysPressed = S.empty
                })
-   else w { playerPos = playerPos `vectorSum` scaledVector (2*dt) speed }
-   where
-    speed = normalized $
-      (keyToDir "W" playerDir)
-      `vectorSum` (keyToDir "S" (scaledVector (-1) playerDir))
-      `vectorSum` (keyToDir "A" (rotatedVector (pi/2) playerDir))
-      `vectorSum` (keyToDir "D" (rotatedVector (-pi/2) playerDir))
-    keyToDir k dir =
-      if S.member k keysPressed then dir else (0,0)
+   else w  { playerPos = decPos }
+    where
+      speed = normalized $
+        (keyToDir "W" playerDir)
+        `vectorSum` (keyToDir "S" (scaledVector (-1) playerDir))
+        `vectorSum` (keyToDir "A" (rotatedVector (pi/2) playerDir))
+        `vectorSum` (keyToDir "D" (rotatedVector (-pi/2) playerDir))
+      newPos = playerPos `vectorSum` scaledVector (2*dt) speed
+      decPos = if (canMove newPos worldMap) then  newPos else playerPos
+      keyToDir k dir =
+        if S.member k keysPressed then dir else (0,0)
   handle' (PointerMovement (x, _)) =
       w { playerDir = rotatedVector (-x * pi / 10) (0, 1) }
   handle' (KeyPress k) = w { keysPressed = S.insert k keysPressed }
   handle' (KeyRelease k) = w { keysPressed = S.delete k keysPressed }
   handle' _ = w
 
+canMove :: Vector -> Map -> Bool
+canMove (x,y) world = ((world A.! (round x,round y)) /= 1) 
+  && ((world A.! (floor x,floor y)) /= 1)
+  
 {- RAY CASTING -}
 
 data HitSide = Inside | N | S | E | W
