@@ -55,8 +55,8 @@ handle e w@(State {..}) = handle' e
       decPos = if (canMove newPos worldMap) then  newPos else playerPos
       keyToDir k dir =
         if S.member k keysPressed then dir else (0,0)
-  handle' (PointerMovement (x, _)) =
-      w { playerDir = rotatedVector (-x * pi / 10) (0, 1) }
+  handle' (KeyPress "Left") = w {playerDir = rotatedVector (0.2) playerDir}
+  handle' (KeyPress "Right") = w {playerDir = rotatedVector (-0.2) playerDir}
   handle' (KeyPress k) = w { keysPressed = S.insert k keysPressed }
   handle' (KeyRelease k) = w { keysPressed = S.delete k keysPressed }
   handle' _ = w
@@ -64,7 +64,7 @@ handle e w@(State {..}) = handle' e
 canMove :: Vector -> Map -> Bool
 canMove (x,y) world = ((world A.! (round x,round y)) /= 1) 
   && ((world A.! (floor x,floor y)) /= 1)
-  
+
 {- RAY CASTING -}
 
 data HitSide = Inside | N | S | E | W
