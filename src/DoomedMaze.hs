@@ -53,7 +53,7 @@ handle e w@(State {..}) = handle' e
   handle' _ = w
 
 canMove :: Vector -> Map -> Bool
-canMove (x,y) world = ((world A.! (round x,round y)) /= 1) 
+canMove (x,y) world = ((world A.! (ceiling (x - 0.99) ,ceiling (y - 0.99))) /= 1)
   && ((world A.! (floor x,floor y)) /= 1)
   
 {- RAY CASTING -}
@@ -116,13 +116,13 @@ collision m pos cameraDir rayDir =
 drawFloor:: Picture
 drawFloor = translated 0 7.5 (colored black (solidRectangle sWidth (sHeight)))
   where 
-    sWidth = fromIntegral 20
+    sWidth = 20.25
     sHeight = fromIntegral 15
 
 drawCeiling :: Picture
 drawCeiling = translated 0 (-7.5) (colored brown (solidRectangle sWidth (sHeight)))
   where 
-    sWidth = fromIntegral 20
+    sWidth = 20.25
     sHeight = fromIntegral 15
 
 render :: State -> Picture
