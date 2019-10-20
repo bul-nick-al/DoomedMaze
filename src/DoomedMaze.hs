@@ -18,8 +18,7 @@ import Data.String
 {- GAME STATE -}
 
 data State = State
-  { levelNumber :: !Int
-  , worldMap :: !Map
+  { worldMap :: !Map
   , playerPos :: !Vector
   , playerDir :: !Vector
   , keysPressed :: !(S.Set T.Text)
@@ -36,15 +35,7 @@ handle :: Event -> State -> State
 handle e w@(State {..}) = handle' e
  where
   handle' (TimePassing dt) =
-    if exitReached (worldMap) (playerPos)
-    then (State
-               { levelNumber = levelNumber + 1
-               , worldMap = parseMap (levels !! (levelNumber + 1))
-               , playerPos = (1.5,1.5)
-               , playerDir = (1,1)
-               , keysPressed = S.empty
-               })
-   else w  { playerPos = decPos }
+    w  { playerPos = decPos }
     where
       speed = normalized $
         (keyToDir "W" playerDir)
@@ -178,6 +169,51 @@ minimap State{..} =
            $ colored red 
            $ (solidCircle 0.5 & polyline [(0,0), playerDir])
 
+
+
+data ActivityOf world = ActivityOf
+    world
+    (Event -> world -> world)
+    (world -> Picture)
+
+data LevelState world = Running Int world
+
+runInteraction :: ActivityOf s -> IO ()
+runInteraction (ActivityOf state0 handle draw)
+    = activityOf state0 handle draw
+
+-- | Turn an interactive program into one with multiple levels.
+withManyLevels
+    :: [level]
+    -> (level -> world)
+    -> (world -> Bool)
+    -> ActivityOf world -- ^ 'interactionOf'.
+    -> ActivityOf (LevelState world)
+withManyLevels
+    levels toWorld isLevelComplete (ActivityOf state0 handle draw)
+    = ActivityOf state0' handle' draw'
+        where
+            state0' = Running 0 (toWorld (levels !! 0))
+            handle' s (Running levelNumber state)
+                = if isLevelComplete state
+                  then Running (levelNumber + 1) (toWorld (levels !! (levelNumber + 1)))
+                  else Running levelNumber (handle s state)
+            draw' (Running levelNumber state) = draw state
+
+
+levelToState :: Level -> State
+levelToState Level{..} = State { worldMap = parseMap levelMap
+                                , playerPos = initialPos
+                                , playerDir = initialDir
+                                , keysPressed = S.empty
+                                }
+
+-- | Is current level complete given some game 'State'?
+isLevelComplete :: State -> Bool
+isLevelComplete State{..} = exitReached worldMap playerPos
+
+
+
 minimapColor :: WallType -> Color
 minimapColor 0 = white
 minimapColor 1 = grey
@@ -186,18 +222,15 @@ minimapColor 3 = green
 minimapColor 4 = red
 minimapColor _ = black
 
+
+coreActivity :: ActivityOf State
+coreActivity = ActivityOf
+                   (levelToState (levels !! 0))
+                   handle
+                   render
+
 {- MAIN -}
 
 game :: IO ()
 game = do
-  activityOf
-    (State
-      {
-        levelNumber = 0
-      , worldMap = parseMap (levels !! 0)
-      , playerPos = (1.5,1.5)
-      , playerDir = (1,1)
-      , keysPressed = S.empty
-      })
-    handle
-    render
+  runInteraction (withManyLevels levels levelToState isLevelComplete coreActivity)
