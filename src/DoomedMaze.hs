@@ -12,12 +12,14 @@ import Vectors
 import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.Text as T
+import Data.String
 
 
 {- GAME STATE -}
 
-data State = State 
-  { worldMap :: !Map 
+data State = State
+  { levelNumber :: !Int
+  , worldMap :: !Map
   , playerPos :: !Vector
   , playerDir :: !Vector
   , keysPressed :: !(S.Set T.Text)
@@ -26,11 +28,21 @@ data State = State
 
 {- EVENT HANDLING -}
 
+exitReached :: Map -> Vector -> Bool
+exitReached m (posX, posY) = (m A.! (round posX,round posY)) == 4
 handle :: Event -> State -> State
 handle e w@(State {..}) = handle' e
  where
   handle' (TimePassing dt) =
-    w { playerPos = playerPos `vectorSum` scaledVector (2*dt) speed }
+    if exitReached (worldMap) (playerPos)
+    then (State
+               { levelNumber = levelNumber + 1
+               , worldMap = parseMap (levels !! (levelNumber + 1))
+               , playerPos = (1.5,1.5)
+               , playerDir = (1,1)
+               , keysPressed = S.empty
+               })
+   else w { playerPos = playerPos `vectorSum` scaledVector (2*dt) speed }
    where
     speed = normalized $
       (keyToDir "W" playerDir)
@@ -104,7 +116,8 @@ collision m pos cameraDir rayDir =
 
 
 render :: State -> Picture
-render state = hud state & world state
+render state = lettering (fromString (show (exitReached (worldMap state) (playerPos state))))
+                <> hud state & world state
 
 world :: State -> Picture
 world State{..} =
@@ -151,6 +164,7 @@ minimapColor 0 = white
 minimapColor 1 = grey
 minimapColor 2 = blue
 minimapColor 3 = green
+minimapColor 4 = red
 minimapColor _ = black
 
 {- MAIN -}
@@ -159,7 +173,9 @@ game :: IO ()
 game = do
   activityOf
     (State
-      { worldMap = parseMap testMap
+      {
+        levelNumber = 0
+      , worldMap = parseMap (levels !! 0)
       , playerPos = (1.5,1.5)
       , playerDir = (1,1)
       , keysPressed = S.empty
