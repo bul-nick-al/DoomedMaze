@@ -9,6 +9,7 @@ import CodeWorld
 import Maps
 import Consts
 import Vectors
+import Doors
 import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -19,6 +20,7 @@ import Data.String
 
 data State = State
   { worldMap :: !Map
+  , doors :: ![Door]
   , playerPos :: !Vector
   , playerDir :: !Vector
   , keysPressed :: !(S.Set T.Text)
@@ -35,7 +37,7 @@ handle :: Event -> State -> State
 handle e w@(State {..}) = handle' e
  where
   handle' (TimePassing dt) =
-    w  { playerPos = decPos }
+    w  { playerPos = decPos, doors = newDoors, worldMap = newMap }
     where
       speed = normalized $
         (keyToDir "W" playerDir)
@@ -43,7 +45,14 @@ handle e w@(State {..}) = handle' e
         `vectorSum` (keyToDir "A" (rotatedVector (pi/2) playerDir))
         `vectorSum` (keyToDir "D" (rotatedVector (-pi/2) playerDir))
       newPos = playerPos `vectorSum` scaledVector (2*dt) speed
-      decPos = if (canMove newPos worldMap) then  newPos else playerPos
+      newDoors = getNewDoors newPos doors
+      closedDoors = getClosedDoorColors newDoors
+      newMap = A.listArray (A.bounds worldMap) newAss
+        where
+          newAssocs = adjustMapToDoors closedDoors (A.assocs worldMap)
+          newAss = map getCols newAssocs
+          getCols (x,y) = y
+      decPos = if (canMove newPos closedDoors worldMap) then  newPos else playerPos --
       keyToDir k dir =
         if S.member k keysPressed then dir else (0,0)
   handle' (KeyPress "Left") = w {playerDir = rotatedVector (0.2) playerDir}
@@ -52,9 +61,12 @@ handle e w@(State {..}) = handle' e
   handle' (KeyRelease k) = w { keysPressed = S.delete k keysPressed }
   handle' _ = w
 
-canMove :: Vector -> Map -> Bool
-canMove (x,y) world = ((world A.! (ceiling (x - 0.99) ,ceiling (y - 0.99))) /= 1)
-  && ((world A.! (floor x,floor y)) /= 1)
+
+canMove :: Vector -> [Int] -> Map -> Bool
+canMove (x,y) closedDoors world = ((world A.! (ceiling (x - 0.99) ,ceiling (y - 0.99))) `notElem` prohTiles)
+  && ((world A.! (floor x,floor y)) `notElem` prohTiles)
+    where
+      prohTiles = [1] ++ closedDoors --
 
 {- RAY CASTING -}
 
@@ -126,7 +138,7 @@ drawCeiling = translated 0 (-7.5) (colored brown (solidRectangle sWidth (sHeight
     sHeight = fromIntegral 15
 
 render :: State -> Picture
-render state = lettering (fromString (show (exitReached (worldMap state) (playerPos state))))
+render state@(State{..}) =  lettering (fromString (show (doors))) <> (translated 0 (-3) (lettering (fromString(show playerPos))))
                 <> hud state & world state <> drawFloor <> drawCeiling
 
 world :: State -> Picture
@@ -203,6 +215,7 @@ withManyLevels
 
 levelToState :: Level -> State
 levelToState Level{..} = State { worldMap = parseMap levelMap
+                                , doors = initialDoors
                                 , playerPos = initialPos
                                 , playerDir = initialDir
                                 , keysPressed = S.empty
@@ -220,6 +233,7 @@ minimapColor 1 = grey
 minimapColor 2 = blue
 minimapColor 3 = green
 minimapColor 4 = red
+minimapColor 7 = azure
 minimapColor _ = black
 
 
@@ -232,5 +246,5 @@ coreActivity = ActivityOf
 {- MAIN -}
 
 game :: IO ()
-game = do
+game = do 
   runInteraction (withManyLevels levels levelToState isLevelComplete coreActivity)
