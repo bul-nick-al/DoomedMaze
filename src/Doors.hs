@@ -1,19 +1,36 @@
 module Doors where
 
 import CodeWorld
-data Door = Door (Int, Int) Int
-    deriving (Show, Eq)
+import qualified Data.Array as A
+import Maps
+--data Door = Door (Int, Int) Int
+--    deriving (Show, Eq)
 
-getClosedDoorColors :: [Door] ->  [Int]
-getClosedDoorColors doors  = map getCol doors
-  where
-    getCol (Door _ col) = col  
+--getClosedDoorColors :: [Door] ->  [Int]
+--getClosedDoorColors doors  = map getCol doors
+--  where
+--    getCol (Door _ col) = col
 
-getNewDoors :: Vector -> [Door] -> [Door]
-getNewDoors _ [] = []
-getNewDoors (x,y) (d:ds)
-    | getTriggerX d `elem` [round x, ceiling (x - 0.99)] && getTriggerY d `elem` [round y, ceiling (y - 0.99)] = (getNewDoors (x,y) ds)
-    | otherwise = [d] ++ getNewDoors (x,y) ds 
-    where
-        getTriggerX (Door (x,_) _) = x 
-        getTriggerY (Door (_,y) _) = y 
+getNewDoorsColors :: Vector -> Map -> [Color] -> [Color]
+getNewDoorsColors (x, y) m colors = case candidate1 of
+                                    (Button color) -> if color `elem` colors
+                                                      then filter (\e -> e/=color) colors
+                                                      else color : colors
+                                    _ ->  case candidate2 of
+                                          (Button color) -> if color `elem` colors
+                                                            then filter (\e -> e/=color) colors
+                                                            else color : colors
+                                          _ -> colors
+
+            where
+                candidate1 = m A.! (floor x, floor y)
+                candidate2 = m A.! (ceiling (x - 0.99), ceiling (y - 0.99))
+
+
+isInsideButton :: Vector -> Map -> Bool
+isInsideButton (x, y) m = isButton candidate1 && isButton candidate2
+            where
+                candidate1 = m A.! (floor x, floor y)
+                candidate2 = m A.! (ceiling (x - 0.99), ceiling (y - 0.99))
+                isButton (Button _) = True
+                isButton _ = False

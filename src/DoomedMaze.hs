@@ -20,7 +20,8 @@ import Data.String
 
 data State = State
   { worldMap :: !Map
-  , doors :: ![Door]
+  , insideButton :: !Bool
+  , openDoorsColors :: ![Color]
   , playerPos :: !Vector
   , playerDir :: !Vector
   , keysPressed :: !(S.Set T.Text)
@@ -30,16 +31,19 @@ data State = State
 {- EVENT HANDLING -}
 
 exitReached :: Map -> Vector -> Bool
-exitReached m (posX, posY)
-    = ((m A.! (ceiling (posX - 0.99) ,ceiling (posY - 0.99))) == 4)
-    && ((m A.! (floor posX, floor posY)) == 4)
+exitReached m (x, y)
+    = candidate1 == Exit || candidate2 == Exit
+    where
+        candidate1 = m A.! (floor x, floor y)
+        candidate2 = m A.! (ceiling (x - 0.99), ceiling (y - 0.99))
+
 
 
 handle :: Event -> State -> State
 handle e w@(State {..}) = handle' e
  where
   handle' (TimePassing dt) =
-    w  { playerPos = decPos, doors = newDoors, worldMap = newMap, playerDir = newDir }
+    w  { playerPos = decPos, openDoorsColors = newOpenDoorsColors, playerDir = newDir, insideButton = newInsideButton }
     where
       speed = normalized $
         (keyToDir "W" playerDir)
@@ -47,23 +51,19 @@ handle e w@(State {..}) = handle' e
         `vectorSum` (keyToDir "A" (rotatedVector (pi/2) playerDir))
         `vectorSum` (keyToDir "D" (rotatedVector (-pi/2) playerDir))
       newPos = playerPos `vectorSum` scaledVector (2*dt) speed
-      newDoors = getNewDoors newPos doors
+      newOpenDoorsColors = if newInsideButton && (not insideButton)
+                           then getNewDoorsColors newPos worldMap openDoorsColors
+                           else openDoorsColors
+--      newOpenDoorsColors = getNewDoorsColors newPos worldMap openDoorsColors
       newDir = if S.member "Right" keysPressed
                then rotatedVector (-0.05) playerDir
                else if S.member "Left" keysPressed
                     then rotatedVector (0.05) playerDir
                     else playerDir
-      closedDoors = getClosedDoorColors newDoors
-      newMap = A.listArray (A.bounds worldMap) newAss
-        where
-          newAssocs = adjustMapToDoors closedDoors (A.assocs worldMap)
-          newAss = map getCols newAssocs
-          getCols (x,y) = y
-      decPos = if (canMove newPos closedDoors worldMap) then  newPos else playerPos --
+      newInsideButton = isInsideButton newPos worldMap
+      decPos = if (canMove newPos newOpenDoorsColors worldMap) then newPos else playerPos --
       keyToDir k dir =
         if S.member k keysPressed then dir else (0,0)
---  handle' (KeyPress "Left") = w {playerDir = rotatedVector (0.2) playerDir}
---  handle' (KeyPress "Right") = w {playerDir = rotatedVector (-0.2) playerDir}
   handle' (PointerMovement (x, _)) =
         w { playerDir = rotatedVector (-x * pi / 10) (0, 1) }
   handle' (KeyPress k) = w { keysPressed = S.insert k keysPressed }
@@ -71,11 +71,17 @@ handle e w@(State {..}) = handle' e
   handle' _ = w
 
 
-canMove :: Vector -> [Int] -> Map -> Bool
-canMove (x,y) closedDoors world = ((world A.! (ceiling (x - 0.99) ,ceiling (y - 0.99))) `notElem` prohTiles)
-  && ((world A.! (floor x,floor y)) `notElem` prohTiles)
+canMove :: Vector -> [Color] -> Map -> Bool
+canMove (x,y) openDoorsColors m = canMove' candidate1 && canMove' candidate2
     where
-      prohTiles = [1] ++ closedDoors --
+        candidate1 = m A.! (floor x, floor y)
+        candidate2 = m A.! (ceiling (x - 0.99), ceiling (y - 0.99))
+        canMove' Wall = False
+        canMove' Floor = True
+        canMove' Exit = True
+        canMove' (Door color) = color `elem` openDoorsColors
+        canMove' (Button _) = True
+
 
 {- RAY CASTING -}
 
@@ -121,8 +127,8 @@ collision
   -> Vector -- starting point
   -> Vector -- camera direction
   -> Vector -- ray direction
-  -> (Int -> Bool)
-  -> (HitSide, WallType, Double {- distance -})
+  -> (GameObject -> Bool)
+  -> (HitSide, GameObject, Double {- distance -})
 collision m pos cameraDir rayDir isSeen =
   head 
   $ filter isWall
@@ -131,14 +137,19 @@ collision m pos cameraDir rayDir isSeen =
  where
   convert (side, coord, d) =
     (side, m A.! coord, d * cos (angleBetween cameraDir rayDir))
-  isWall (_, wallType, _) = isSeen wallType
+  isWall (_, gameObj, _) = isSeen gameObj
 
-isWall :: Int -> Bool
-isWall wallType = wallType > 0 && wallType /= 3
+isNotButton :: GameObject -> Bool
+isNotButton Floor = False
+isNotButton (Button _) = False
+isNotButton _ = True
 
-isDoor :: Int -> Bool
-isDoor wallType = wallType > 0
+isButton :: GameObject -> Bool
+isButton Floor = False
+isButton _ = True
 {- RENDERING -}
+
+
 
 
 drawFloor:: Picture
@@ -154,29 +165,37 @@ drawCeiling = translated 0 (-7.5) (colored brown (solidRectangle sWidth (sHeight
     sHeight = fromIntegral 15
 
 render :: State -> Picture
-render state@(State{..}) =  lettering (fromString (show (doors))) <> (translated 0 (-3) (lettering (fromString(show playerPos))))
-                <> hud state & world state <> drawFloor <> drawCeiling
+render state@(State{..}) = hud state {worldMap = newMap} & world state {worldMap = newMap} <> drawFloor <> drawCeiling
+       where
+          newMap = A.listArray (A.bounds worldMap) (concat dd)
+          dd = map (\i -> map (\j ->  toNewMap (worldMap A.! (i,j))) [0..h]) [0..w]
+          toNewMap (Door color) = if color `elem` openDoorsColors then Floor else (Door color)
+          toNewMap x = x
+          ((0,0), (w,h)) = A.bounds worldMap
+
+-- lettering (fromString (show (doors))) <> (translated 0 (-3) (lettering (fromString(show playerPos))))
+--                <>
 
 world :: State -> Picture
 world State{..} =
-  scaled ratio ratio ((renderDoors worldMap playerPos playerDir) <> (walls worldMap playerPos playerDir))
+  scaled ratio ratio ((renderButtons worldMap playerPos playerDir) <> (walls worldMap playerPos playerDir))
  where
   ratio = 20 / i2d screenWidth
 
 
-renderDoors:: Map -> Point -> Vector -> Picture
-renderDoors m pos dir =
+renderButtons:: Map -> Point -> Vector -> Picture
+renderButtons m pos dir =
   pictures (map door [-halfScreenWidth .. halfScreenWidth])
  where
   door i =
-    let (hitSide, wallType, distance) = collision m pos dir (rayDir i) isDoor
+    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isButton
         x = i2d i
         y = (i2d halfScreenHeight) / distance
-        color = wallColor hitSide wallType
-    in if wallType == 3
-       then (colored color $ thickPolygon 0.3 [(x-0.5, -(y/5)), (x+0.5, -(y/5)), (x+0.5, (y/5)), (x-0.5, (y/5))])
-            <> (colored black $ thickPolyline 1.05 [(x, -(y/5)), (x, (y/5))])
-       else blank
+        color = shadowedObjectColor hitSide objType
+    in case objType of
+       (Button _) -> (colored color $ thickPolygon 0.3 [(x-0.5, -(y/5)), (x+0.5, -(y/5)), (x+0.5, (y/5)), (x-0.5, (y/5))])
+                      <> (colored black $ thickPolyline 1.05 [(x, -(y/5)), (x, (y/5))])
+       _ -> blank
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
 walls :: Map -> Point -> Vector -> Picture
@@ -184,17 +203,17 @@ walls m pos dir =
   pictures (map wallSlice [-halfScreenWidth .. halfScreenWidth])
  where
   wallSlice i =
-    let (hitSide, wallType, distance) = collision m pos dir (rayDir i) isWall
+    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isNotButton
         x = i2d i
         y = (i2d halfScreenHeight) / distance
-        color = wallColor hitSide wallType
-    in if wallType /= 3
-           then colored color $ thickPolyline 1.05 [(x, -y), (x, y)]
-           else blank
+        color = shadowedObjectColor hitSide objType
+    in case objType of
+       (Button _) -> blank
+       _ -> colored color $ thickPolyline 1.05 [(x, -y), (x, y)]
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
-wallColor :: HitSide -> WallType -> Color
-wallColor hitSide wallType = colorModifier hitSide (minimapColor wallType)
+shadowedObjectColor :: HitSide -> GameObject -> Color
+shadowedObjectColor hitSide objType = colorModifier hitSide (objectColor objType)
  where
   colorModifier E = dark
   colorModifier W = dark
@@ -204,12 +223,12 @@ hud :: State -> Picture
 hud state = translated (-9) 6 $ scaled 0.2 0.2 $ minimap state
 
 minimap :: State -> Picture
-minimap State{..} = 
+minimap State{..} =
   player & pictures [cell i j | i <- [0..w], j <- [0..h]]
  where
   (_, (w, h)) = A.bounds worldMap
   cell i j = translated (i2d i) (i2d j) 
-             $ colored (minimapColor (worldMap A.! (i,j)))
+             $ colored (objectColor (worldMap A.! (i,j)))
              $ solidRectangle 1 1
   player = uncurry translated playerPos 
            $ colored red 
@@ -249,7 +268,8 @@ withManyLevels
 
 levelToState :: Level -> State
 levelToState Level{..} = State { worldMap = parseMap levelMap
-                                , doors = initialDoors
+                                , insideButton = False
+                                , openDoorsColors = openColors
                                 , playerPos = initialPos
                                 , playerDir = initialDir
                                 , keysPressed = S.empty
@@ -264,14 +284,13 @@ isLevelComplete State{..} = exitReached worldMap playerPos
 
 
 
-minimapColor :: WallType -> Color
-minimapColor 0 = white
-minimapColor 1 = grey
-minimapColor 2 = blue
-minimapColor 3 = green
-minimapColor 4 = red
-minimapColor 7 = azure
-minimapColor _ = black
+objectColor :: GameObject -> Color
+objectColor Wall = gray
+objectColor Floor = white
+objectColor Exit = red
+objectColor (Door color) = color
+objectColor (Button color) = color
+objectColor _ = black
 
 
 coreActivity :: ActivityOf State

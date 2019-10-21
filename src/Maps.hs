@@ -7,14 +7,13 @@ import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.String
-import Doors
 
-type WallType = Int
-type Map = A.Array (Int, Int) WallType
+data GameObject = Wall | Door Color | Button Color | Floor | Exit deriving (Show, Eq)
+type Map = A.Array (Int, Int) GameObject
 
 data Level = Level {
         levelMap :: [String]
-      , initialDoors :: [Door]  
+      , openColors :: [Color]
       , initialPos :: Vector
       , initialDir :: Vector
     }
@@ -26,7 +25,29 @@ parseMap rows =
     w = length (head rows)
     h = length rows
     parseRow j row = zipWith (parseCell j) [0..] row
-    parseCell j i cell = ((i,j), read [cell])
+    parseCell j i cell = ((i,j), (symbolToObject cell))
+
+
+symbolToObject :: Char -> GameObject
+symbolToObject '|' = Wall
+symbolToObject '.' = Floor
+symbolToObject '$' = Exit
+symbolToObject char = colorObject char
+                      
+colorObject :: Char -> GameObject
+colorObject 'a' = Door yellow
+colorObject 'b' = Door grey
+colorObject 'c' = Door blue
+colorObject 'd' = Door green
+colorObject 'e' = Door red
+colorObject 'f' = Door azure
+colorObject 'A' = Button yellow
+colorObject 'B' = Button grey
+colorObject 'C' = Button blue
+colorObject 'D' = Button green
+colorObject 'E' = Button red
+colorObject 'F' = Button azure
+colorObject _ = Floor
 
 adjustMapToDoors :: [Int] -> [((Int,Int),Int)] -> [((Int,Int),Int)]
 adjustMapToDoors closedDoors wMap = map needsChange wMap
@@ -45,21 +66,22 @@ levels = [
 
 level3 :: Level
 level3 = Level {
-        levelMap = [  "111111111111111111111111"
-                    , "100000100000000010000001"
-                    , "100000100022000010000001"
-                    , "100700100022000010000001"
-                    , "100300100000000010004001"
-                    , "100000100000000010000001"
-                    , "100111111000011117777771"
-                    , "100700000000000000000001"
-                    , "100000000000000000000001"
-                    , "100030000003000000030001"
-                    , "100000000000000000000001"
-                    , "100000000000000000000001"
-                    , "111111111111111111111111"
+        levelMap = [  "||||||||||||||||||||||||"
+                    , "|.....|.........|......|"
+                    , "|.....|...bb....|......|"
+                    , "|..F..|...bb....|......|"
+                    , "|..D..|.........|...$..|"
+                    , "|.....|.........|......|"
+                    , "|..||||||....||||ffffff|"
+                    , "|..f...................|"
+                    , "|......................|"
+                    , "|...d......d.......d...|"
+                    , "|......................|"
+                    , "|......................|"
+                    , "||||||||||||||||||||||||"
                    ]
-        , initialDoors = [(Door (3,3) 7), (Door (3,4) 3)]
+
+        , openColors = []
         , initialPos = (1.5,1.5)
         , initialDir = (1, 1)
     }
@@ -67,21 +89,21 @@ level3 = Level {
 
 level2 :: Level
 level2 = Level {
-          levelMap = [ "111111111111111111111111"
-                     , "100000100000000010000001"
-                     , "100000100022000010000001"
-                     , "100300100022000010000001"
-                     , "100000100000000010004001"
-                     , "100000100000000010000001"
-                     , "100000000000033310000001"
-                     , "100000003040000000000001"
-                     , "100000003000000000000001"
-                     , "100000003000000000030001"
-                     , "100000003000000000000001"
-                     , "100000000000000000000001"
-                     , "111111111111111111111111"
+          levelMap = [ "||||||||||||||||||||||||"
+                     , "|.....|.........|......|"
+                     , "|.....|...bb....|......|"
+                     , "|..D..|...bb....|......|"
+                     , "|.....|.........|...$..|"
+                     , "|.....|.........|......|"
+                     , "|............ddd|......|"
+                     , "|.......d..............|"
+                     , "|.......d..............|"
+                     , "|.......d..........d...|"
+                     , "|.......d..............|"
+                     , "|......................|"
+                     , "||||||||||||||||||||||||"
                      ]
-        , initialDoors = []
+        , openColors = []
         , initialPos = (1.5,1.5)
         , initialDir = (1, 1)
     }
@@ -90,30 +112,30 @@ level2 = Level {
 level1 :: Level
 level1 = Level {
           levelMap = [
-                     "111111111111111111111",
-                     "101400030010000000101",
-                     "101111111010161110101",
-                     "106000001010100010601",
-                     "101111101010111011101",
-                     "100010131010001010501",
-                     "101710101011111510111",
-                     "151050101000000010101",
-                     "121010101111111110101",
-                     "101010100000000010131",
-                     "131116111711111010101",
-                     "131210000400101010601",
-                     "101011111117101211101",
-                     "101000000010100010001",
-                     "101111101110101110111",
-                     "101000001000100070101",
-                     "101011111511111110101",
-                     "101010001000000010101",
-                     "101611101011111010151",
-                     "100000003000001000001",
-                     "111111111111111111111"
+                     "|||||||||||||||||||||",
+                     "|.|A...F..|.......|.|",
+                     "|.|||||||.|.|f|||.|.|",
+                     "|.f.....|.|.|...|.f.|",
+                     "|.|||||.|.|.|||.|||.|",
+                     "|...|.|F|.|...|.|.d.|",
+                     "|.|a|.|.|.|||||d|.|||",
+                     "|d|.d.|.|.......|.|.|",
+                     "|D|.|.|.|||||||||.|.|",
+                     "|.|.|.|.........|.|F|",
+                     "|F|||f|||a|||||.|.|.|",
+                     "|f|D|....$..|.|.|.f.|",
+                     "|.|.|||||||a|.|D|||.|",
+                     "|.|.......|.|...|...|",
+                     "|.|||||.|||.|.|||.|||",
+                     "|.|.....|...|...a.|.|",
+                     "|.|.|||||d|||||||.|.|",
+                     "|.|.|...|.......|.|.|",
+                     "|.|f|||.|.|||||.|.|d|",
+                     "|.......F.....|.....|",
+                     "|||||||||||||||||||||"
                      ]
-        , initialDoors = [(Door (1,9) 3)]
+        , openColors = [green]
         , initialPos = (1.5,1.5)
         , initialDir = (1, 1)
     }
-
+                      
