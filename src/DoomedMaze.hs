@@ -30,14 +30,16 @@ data State = State
 {- EVENT HANDLING -}
 
 exitReached :: Map -> Vector -> Bool
-exitReached m (posX, posY) = (m A.! (round posX,round posY)) == 4
+exitReached m (posX, posY)
+    = ((m A.! (ceiling (posX - 0.99) ,ceiling (posY - 0.99))) == 4)
+    && ((m A.! (floor posX, floor posY)) == 4)
 
 
 handle :: Event -> State -> State
 handle e w@(State {..}) = handle' e
  where
   handle' (TimePassing dt) =
-    w  { playerPos = decPos, doors = newDoors, worldMap = newMap }
+    w  { playerPos = decPos, doors = newDoors, worldMap = newMap, playerDir = newDir }
     where
       speed = normalized $
         (keyToDir "W" playerDir)
@@ -46,6 +48,11 @@ handle e w@(State {..}) = handle' e
         `vectorSum` (keyToDir "D" (rotatedVector (-pi/2) playerDir))
       newPos = playerPos `vectorSum` scaledVector (2*dt) speed
       newDoors = getNewDoors newPos doors
+      newDir = if S.member "Right" keysPressed
+               then rotatedVector (-0.05) playerDir
+               else if S.member "Left" keysPressed
+                    then rotatedVector (0.05) playerDir
+                    else playerDir
       closedDoors = getClosedDoorColors newDoors
       newMap = A.listArray (A.bounds worldMap) newAss
         where
@@ -55,8 +62,10 @@ handle e w@(State {..}) = handle' e
       decPos = if (canMove newPos closedDoors worldMap) then  newPos else playerPos --
       keyToDir k dir =
         if S.member k keysPressed then dir else (0,0)
-  handle' (KeyPress "Left") = w {playerDir = rotatedVector (0.2) playerDir}
-  handle' (KeyPress "Right") = w {playerDir = rotatedVector (-0.2) playerDir}
+--  handle' (KeyPress "Left") = w {playerDir = rotatedVector (0.2) playerDir}
+--  handle' (KeyPress "Right") = w {playerDir = rotatedVector (-0.2) playerDir}
+  handle' (PointerMovement (x, _)) =
+        w { playerDir = rotatedVector (-x * pi / 10) (0, 1) }
   handle' (KeyPress k) = w { keysPressed = S.insert k keysPressed }
   handle' (KeyRelease k) = w { keysPressed = S.delete k keysPressed }
   handle' _ = w
@@ -112,8 +121,9 @@ collision
   -> Vector -- starting point
   -> Vector -- camera direction
   -> Vector -- ray direction
+  -> (Int -> Bool)
   -> (HitSide, WallType, Double {- distance -})
-collision m pos cameraDir rayDir =
+collision m pos cameraDir rayDir isSeen =
   head 
   $ filter isWall
   $ map convert
@@ -121,9 +131,15 @@ collision m pos cameraDir rayDir =
  where
   convert (side, coord, d) =
     (side, m A.! coord, d * cos (angleBetween cameraDir rayDir))
-  isWall (_, wallType, _) = wallType > 0
+  isWall (_, wallType, _) = isSeen wallType
 
+isWall :: Int -> Bool
+isWall wallType = wallType > 0 && wallType /= 3
+
+isDoor :: Int -> Bool
+isDoor wallType = wallType > 0
 {- RENDERING -}
+
 
 drawFloor:: Picture
 drawFloor = translated 0 7.5 (colored black (solidRectangle sWidth (sHeight)))
@@ -143,20 +159,38 @@ render state@(State{..}) =  lettering (fromString (show (doors))) <> (translated
 
 world :: State -> Picture
 world State{..} =
-  scaled ratio ratio (walls worldMap playerPos playerDir)
+  scaled ratio ratio ((renderDoors worldMap playerPos playerDir) <> (walls worldMap playerPos playerDir))
  where
   ratio = 20 / i2d screenWidth
+
+
+renderDoors:: Map -> Point -> Vector -> Picture
+renderDoors m pos dir =
+  pictures (map door [-halfScreenWidth .. halfScreenWidth])
+ where
+  door i =
+    let (hitSide, wallType, distance) = collision m pos dir (rayDir i) isDoor
+        x = i2d i
+        y = (i2d halfScreenHeight) / distance
+        color = wallColor hitSide wallType
+    in if wallType == 3
+       then (colored color $ thickPolygon 0.3 [(x-0.5, -(y/5)), (x+0.5, -(y/5)), (x+0.5, (y/5)), (x-0.5, (y/5))])
+            <> (colored black $ thickPolyline 1.05 [(x, -(y/5)), (x, (y/5))])
+       else blank
+  rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
 walls :: Map -> Point -> Vector -> Picture
 walls m pos dir =
   pictures (map wallSlice [-halfScreenWidth .. halfScreenWidth])
  where
   wallSlice i =
-    let (hitSide, wallType, distance) = collision m pos dir (rayDir i)
+    let (hitSide, wallType, distance) = collision m pos dir (rayDir i) isWall
         x = i2d i
         y = (i2d halfScreenHeight) / distance
         color = wallColor hitSide wallType
-    in colored color $ thickPolyline 1 [(x, -y), (x, y)]
+    in if wallType /= 3
+           then colored color $ thickPolyline 1.05 [(x, -y), (x, y)]
+           else blank
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
 wallColor :: HitSide -> WallType -> Color
@@ -167,7 +201,7 @@ wallColor hitSide wallType = colorModifier hitSide (minimapColor wallType)
   colorModifier _ = id
 
 hud :: State -> Picture
-hud state = translated (-9) 7 $ scaled 0.2 0.2 $ minimap state
+hud state = translated (-9) 6 $ scaled 0.2 0.2 $ minimap state
 
 minimap :: State -> Picture
 minimap State{..} = 
@@ -224,6 +258,9 @@ levelToState Level{..} = State { worldMap = parseMap levelMap
 -- | Is current level complete given some game 'State'?
 isLevelComplete :: State -> Bool
 isLevelComplete State{..} = exitReached worldMap playerPos
+
+
+
 
 
 
