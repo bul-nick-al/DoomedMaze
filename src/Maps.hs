@@ -29,7 +29,7 @@ parseMap rows =
     parseRow j row = zipWith (parseCell j) [0..] row
     parseCell j i cell = ((i,j), (symbolToObject cell))
 
-{- Helping function for map parse -}
+{- Helping functions for map parse -}
 
 symbolToObject :: Char -> GameObject
 symbolToObject '|' = Wall
