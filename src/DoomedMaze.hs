@@ -290,7 +290,6 @@ objectColor Floor = white
 objectColor Exit = red
 objectColor (Door color) = color
 objectColor (Button color) = color
-objectColor _ = black
 
 -- | Initial ActivityOf
 coreActivity :: ActivityOf State

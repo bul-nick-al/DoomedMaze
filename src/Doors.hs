@@ -5,11 +5,11 @@ import qualified Data.Array as A
 import Maps
 
 -- | Function to get updated list of opened doors
-getNewDoorsColors 
-:: Vector -- Current position
--> Map -- World map
--> [Color] -- Current list of doors
--> [Color] -- New list of doors
+getNewDoorsColors :: 
+  Vector -- Current position
+  -> Map -- World map
+  -> [Color] -- Current list of doors
+  -> [Color] -- New list of doors
 getNewDoorsColors (x, y) m colors = case candidate1 of
                                     (Button color) -> if color `elem` colors
                                                       then filter (\e -> e/=color) colors
