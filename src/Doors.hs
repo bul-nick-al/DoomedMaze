@@ -5,8 +5,8 @@ import qualified Data.Array as A
 import Maps
 
 -- | Function to get updated list of opened doors
-getNewDoorsColors :: 
-  Vector -- Current position
+getNewDoorsColors
+  :: Vector -- Current position
   -> Map -- World map
   -> [Color] -- Current list of doors
   -> [Color] -- New list of doors

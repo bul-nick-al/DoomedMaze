@@ -19,10 +19,10 @@ import Data.String
 -- | Game state
 data State = State
   { worldMap :: !Map -- Current level map
-  , insideButton :: !Bool -- Bool to check if player is inside the button
-  , openDoorsColors :: ![Color] -- List of open doors
+  , insideButton :: !Bool -- Bool to check if player is inside a button
+  , openDoorsColors :: ![Color] -- List colors of open doors
   , playerPos :: !Vector -- Current player position
-  , playerDir :: !Vector -- Current player position
+  , playerDir :: !Vector -- Current player direction
   , keysPressed :: !(S.Set T.Text) -- Currently pressed button
   }
   deriving (Show)
@@ -42,11 +42,11 @@ handle :: Event -> State -> State
 handle e w@(State {..}) = handle' e
  where
   handle' (TimePassing dt) =
-    w  { playerPos = decPos, 
-        openDoorsColors = newOpenDoorsColors,
-        playerDir = newDir,
-        insideButton = newInsideButton 
-        }
+    w  { playerPos = decPos
+       , openDoorsColors = newOpenDoorsColors
+       , playerDir = newDir
+       , insideButton = newInsideButton
+       }
     where
       speed = normalized $
         (keyToDir "W" playerDir)
@@ -191,7 +191,8 @@ renderButtons m pos dir =
         y = (i2d halfScreenHeight) / distance
         color = shadowedObjectColor hitSide objType
     in case objType of
-       (Button _) -> (colored color $ thickPolygon 0.3 [(x-0.5, -(y/5)), (x+0.5, -(y/5)), (x+0.5, (y/5)), (x-0.5, (y/5))])
+       (Button _) -> (colored color $ thickPolygon 0.3
+                                                   [(x-0.5, -(y/5)), (x+0.5, -(y/5)), (x+0.5, (y/5)), (x-0.5, (y/5))])
                       <> (colored black $ thickPolyline 1.05 [(x, -(y/5)), (x, (y/5))])
        _ -> blank
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir

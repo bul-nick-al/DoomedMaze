@@ -19,7 +19,7 @@ data Level = Level {
       , initialDir :: Vector
     }
 
--- | Function to convert stringed map into the array 
+-- | Function to convert string representation of map into an array
 parseMap :: [String] -> Map
 parseMap rows =
     A.array ((0,0), (w-1,h-1)) (concat (zipWith parseRow [0..] rows))
