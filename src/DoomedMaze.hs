@@ -16,20 +16,19 @@ import qualified Data.Text as T
 import Data.String
 
 
-{- GAME STATE -}
-
+-- | Game state
 data State = State
-  { worldMap :: !Map
-  , insideButton :: !Bool
-  , openDoorsColors :: ![Color]
-  , playerPos :: !Vector
-  , playerDir :: !Vector
-  , keysPressed :: !(S.Set T.Text)
+  { worldMap :: !Map -- Current level map
+  , insideButton :: !Bool -- Bool to check if player is inside the button
+  , openDoorsColors :: ![Color] -- List of open doors
+  , playerPos :: !Vector -- Current player position
+  , playerDir :: !Vector -- Current player position
+  , keysPressed :: !(S.Set T.Text) -- Currently pressed button
   }
   deriving (Show)
 
-{- EVENT HANDLING -}
 
+-- | Function to check if player reached exit of this level
 exitReached :: Map -> Vector -> Bool
 exitReached m (x, y)
     = candidate1 == Exit || candidate2 == Exit
@@ -38,12 +37,16 @@ exitReached m (x, y)
         candidate2 = m A.! (ceiling (x - 0.99), ceiling (y - 0.99))
 
 
-
+-- | Function to handle users interactions
 handle :: Event -> State -> State
 handle e w@(State {..}) = handle' e
  where
   handle' (TimePassing dt) =
-    w  { playerPos = decPos, openDoorsColors = newOpenDoorsColors, playerDir = newDir, insideButton = newInsideButton }
+    w  { playerPos = decPos, 
+        openDoorsColors = newOpenDoorsColors,
+        playerDir = newDir,
+        insideButton = newInsideButton 
+        }
     where
       speed = normalized $
         (keyToDir "W" playerDir)
@@ -54,14 +57,13 @@ handle e w@(State {..}) = handle' e
       newOpenDoorsColors = if newInsideButton && (not insideButton)
                            then getNewDoorsColors newPos worldMap openDoorsColors
                            else openDoorsColors
---      newOpenDoorsColors = getNewDoorsColors newPos worldMap openDoorsColors
       newDir = if S.member "Right" keysPressed
                then rotatedVector (-0.05) playerDir
                else if S.member "Left" keysPressed
                     then rotatedVector (0.05) playerDir
                     else playerDir
       newInsideButton = isInsideButton newPos worldMap
-      decPos = if (canMove newPos newOpenDoorsColors worldMap) then newPos else playerPos --
+      decPos = if (canMove newPos newOpenDoorsColors worldMap) then newPos else playerPos 
       keyToDir k dir =
         if S.member k keysPressed then dir else (0,0)
   handle' (PointerMovement (x, _)) =
@@ -70,7 +72,7 @@ handle e w@(State {..}) = handle' e
   handle' (KeyRelease k) = w { keysPressed = S.delete k keysPressed }
   handle' _ = w
 
-
+-- | Function to check if the movement to the new position is possible
 canMove :: Vector -> [Color] -> Map -> Bool
 canMove (x,y) openDoorsColors m = canMove' candidate1 && canMove' candidate2
     where
@@ -82,13 +84,11 @@ canMove (x,y) openDoorsColors m = canMove' candidate1 && canMove' candidate2
         canMove' (Door color) = color `elem` openDoorsColors
         canMove' (Button _) = True
 
-
-{- RAY CASTING -}
-
+-- | Side of ray hit 
 data HitSide = Inside | N | S | E | W
   deriving Show
 
--- from http://www.cse.yorku.ca/~amana/research/grid.pdf
+-- | Function to get intersections of ray with vertical grid lines
 cellsVisitedByRay 
   :: Vector -- starting point 
   -> Vector -- direction
@@ -122,6 +122,7 @@ cellsVisitedByRay (posX, posY) (dirX, dirY) =
             tMaxY' = tMaxY + tDeltaY
         in (ySide, (i, j'), tMaxY) : go i j' tMaxX tMaxY'
 
+-- | Get collision with object data
 collision
   :: Map
   -> Vector -- starting point
@@ -147,23 +148,22 @@ isNotButton _ = True
 isButton :: GameObject -> Bool
 isButton Floor = False
 isButton _ = True
-{- RENDERING -}
 
-
-
-
+-- | Function to draw floor
 drawFloor:: Picture
 drawFloor = translated 0 7.5 (colored black (solidRectangle sWidth (sHeight)))
   where 
     sWidth = 20.25
     sHeight = fromIntegral 15
 
+-- | Function to draw ceiling
 drawCeiling :: Picture
 drawCeiling = translated 0 (-7.5) (colored brown (solidRectangle sWidth (sHeight)))
   where 
     sWidth = 20.25
     sHeight = fromIntegral 15
 
+-- | Function to render environment given state
 render :: State -> Picture
 render state@(State{..}) = hud state {worldMap = newMap} & world state {worldMap = newMap} <> drawFloor <> drawCeiling
        where
@@ -173,16 +173,14 @@ render state@(State{..}) = hud state {worldMap = newMap} & world state {worldMap
           toNewMap x = x
           ((0,0), (w,h)) = A.bounds worldMap
 
--- lettering (fromString (show (doors))) <> (translated 0 (-3) (lettering (fromString(show playerPos))))
---                <>
-
+-- | Function to draw the 3d environment
 world :: State -> Picture
 world State{..} =
   scaled ratio ratio ((renderButtons worldMap playerPos playerDir) <> (walls worldMap playerPos playerDir))
  where
   ratio = 20 / i2d screenWidth
 
-
+-- | Function to render buttons
 renderButtons:: Map -> Point -> Vector -> Picture
 renderButtons m pos dir =
   pictures (map door [-halfScreenWidth .. halfScreenWidth])
@@ -198,6 +196,7 @@ renderButtons m pos dir =
        _ -> blank
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
+-- | Function to render walls
 walls :: Map -> Point -> Vector -> Picture
 walls m pos dir =
   pictures (map wallSlice [-halfScreenWidth .. halfScreenWidth])
@@ -212,6 +211,7 @@ walls m pos dir =
        _ -> colored color $ thickPolyline 1.05 [(x, -y), (x, y)]
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
+-- | Function to render primitive shadows based on the side where rays hit
 shadowedObjectColor :: HitSide -> GameObject -> Color
 shadowedObjectColor hitSide objType = colorModifier hitSide (objectColor objType)
  where
@@ -219,9 +219,11 @@ shadowedObjectColor hitSide objType = colorModifier hitSide (objectColor objType
   colorModifier W = dark
   colorModifier _ = id
 
+-- | Function to render hud
 hud :: State -> Picture
 hud state = translated (-9) 6 $ scaled 0.2 0.2 $ minimap state
 
+-- | Function to render minimap
 minimap :: State -> Picture
 minimap State{..} =
   player & pictures [cell i j | i <- [0..w], j <- [0..h]]
@@ -235,14 +237,16 @@ minimap State{..} =
            $ (solidCircle 0.5 & polyline [(0,0), playerDir])
 
 
-
+-- | Wrapper for activityOf args
 data ActivityOf world = ActivityOf
     world
     (Event -> world -> world)
     (world -> Picture)
 
+-- | Current level
 data LevelState world = Running Int world
 
+-- | Mapping arguments to activityOf function
 runInteraction :: ActivityOf s -> IO ()
 runInteraction (ActivityOf state0 handle draw)
     = activityOf state0 handle draw
@@ -265,7 +269,7 @@ withManyLevels
                   else Running levelNumber (handle s state)
             draw' (Running levelNumber state) = draw state
 
-
+-- | Loading level into the state
 levelToState :: Level -> State
 levelToState Level{..} = State { worldMap = parseMap levelMap
                                 , insideButton = False
@@ -279,11 +283,7 @@ levelToState Level{..} = State { worldMap = parseMap levelMap
 isLevelComplete :: State -> Bool
 isLevelComplete State{..} = exitReached worldMap playerPos
 
-
-
-
-
-
+-- | Mapping object to its color 
 objectColor :: GameObject -> Color
 objectColor Wall = gray
 objectColor Floor = white
@@ -292,7 +292,7 @@ objectColor (Door color) = color
 objectColor (Button color) = color
 objectColor _ = black
 
-
+-- | Initial ActivityOf
 coreActivity :: ActivityOf State
 coreActivity = ActivityOf
                    (levelToState (levels !! 0))

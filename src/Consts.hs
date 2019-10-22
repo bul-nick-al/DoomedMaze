@@ -1,3 +1,4 @@
+{- Constants -}
 module Consts where
 
 

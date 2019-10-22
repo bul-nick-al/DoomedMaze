@@ -11,6 +11,7 @@ import Data.String
 data GameObject = Wall | Door Color | Button Color | Floor | Exit deriving (Show, Eq)
 type Map = A.Array (Int, Int) GameObject
 
+-- | Level data type
 data Level = Level {
         levelMap :: [String]
       , openColors :: [Color]
@@ -18,6 +19,7 @@ data Level = Level {
       , initialDir :: Vector
     }
 
+-- | Function to convert stringed map into the array 
 parseMap :: [String] -> Map
 parseMap rows =
     A.array ((0,0), (w-1,h-1)) (concat (zipWith parseRow [0..] rows))
@@ -27,13 +29,14 @@ parseMap rows =
     parseRow j row = zipWith (parseCell j) [0..] row
     parseCell j i cell = ((i,j), (symbolToObject cell))
 
+{- Helping function for map parse -}
 
 symbolToObject :: Char -> GameObject
 symbolToObject '|' = Wall
 symbolToObject '.' = Floor
 symbolToObject '$' = Exit
 symbolToObject char = colorObject char
-                      
+
 colorObject :: Char -> GameObject
 colorObject 'a' = Door yellow
 colorObject 'b' = Door grey
@@ -49,11 +52,6 @@ colorObject 'E' = Button red
 colorObject 'F' = Button azure
 colorObject _ = Floor
 
-adjustMapToDoors :: [Int] -> [((Int,Int),Int)] -> [((Int,Int),Int)]
-adjustMapToDoors closedDoors wMap = map needsChange wMap
-  where
-    needsChange ((xCor,yCor),col) = if col `notElem` closedDoors && notWall col then ((xCor,yCor),0) else ((xCor,yCor),col)
-    notWall e = e /= 1 && e /= 4
 
 -- | A list of all level maps.
 levels :: [Level]
