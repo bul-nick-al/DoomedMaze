@@ -176,13 +176,17 @@ render state@(State{..}) = hud state {worldMap = newMap} & world state {worldMap
 -- | Function to draw the 3d environment
 world :: State -> Picture
 world State{..} =
-  scaled ratio ratio ((renderButtons worldMap playerPos playerDir) <> (walls worldMap playerPos playerDir))
+  scaled ratio ratio ((renderButtons worldMap
+                                     openDoorsColors
+                                     playerPos
+                                     playerDir)
+                       <> (walls worldMap playerPos playerDir))
  where
   ratio = 20 / i2d screenWidth
 
 -- | Function to render buttons
-renderButtons:: Map -> Point -> Vector -> Picture
-renderButtons m pos dir =
+renderButtons:: Map -> [Color]-> Point -> Vector -> Picture
+renderButtons m openDoors pos dir =
   pictures (map door [-halfScreenWidth .. halfScreenWidth])
  where
   door i =
@@ -191,11 +195,13 @@ renderButtons m pos dir =
         y = (i2d halfScreenHeight) / distance
         color = shadowedObjectColor hitSide objType
     in case objType of
-       (Button _) -> (colored color $ thickPolygon 0.3
+       (Button bc) -> (colored color $ thickPolygon 0.3
                                                    [(x-0.5, -(y/5)), (x+0.5, -(y/5)), (x+0.5, (y/5)), (x-0.5, (y/5))])
-                      <> (colored black $ thickPolyline 1.05 [(x, -(y/5)), (x, (y/5))])
+                      <> (colored (getSecondColor bc) $ thickPolyline 1.05 [(x, -(y/5)), (x, (y/5))])
        _ -> blank
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
+  getSecondColor c | c `elem` openDoors = white
+                   | otherwise = black
 
 -- | Function to render walls
 walls :: Map -> Point -> Vector -> Picture
@@ -231,11 +237,13 @@ minimap State{..} =
  where
   (_, (w, h)) = A.bounds worldMap
   cell i j = translated (i2d i) (i2d j) 
-             $ colored (objectColor (worldMap A.! (i,j)))
-             $ solidRectangle 1 1
+             $ drawCell (worldMap A.! (i,j))
   player = uncurry translated playerPos 
            $ colored red 
            $ (solidCircle 0.5 & polyline [(0,0), playerDir])
+  drawCell (Button color) = (colored (objectColor (Button color)) $ solidCircle 0.5)
+                            <> (colored white $ solidRectangle 1 1)
+  drawCell obj = colored (objectColor obj) $ solidRectangle 1 1
 
 
 -- | Wrapper for activityOf args
