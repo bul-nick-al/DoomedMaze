@@ -7,9 +7,13 @@ import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.String
+import MazeGenerator
+import Space
+import System.Random
 
 data GameObject = Wall | Door Color | Button Color | Floor | Exit deriving (Show, Eq)
 type Map = A.Array (Int, Int) GameObject
+
 
 -- | Level data type
 data Level = Level {
@@ -17,7 +21,7 @@ data Level = Level {
       , openColors :: [Color]
       , initialPos :: Vector
       , initialDir :: Vector
-    }
+    } deriving (Show)
 
 -- | Function to convert string representation of map into an array
 parseMap :: [String] -> Map
@@ -109,31 +113,76 @@ level2 = Level {
 
 level1 :: Level
 level1 = Level {
-          levelMap = [
-                     "|||||||||||||||||||||",
-                     "|.|A...F..|.......|.|",
-                     "|.|||||||.|.|f|||.|.|",
-                     "|.f.....|.|.|...|.f.|",
-                     "|.|||||.|.|.|||.|||.|",
-                     "|...|.|F|.|...|.|.d.|",
-                     "|.|a|.|.|.|||||d|.|||",
-                     "|d|.d.|.|.......|.|.|",
-                     "|D|.|.|.|||||||||.|.|",
-                     "|.|.|.|.........|.|F|",
-                     "|F|||f|||a|||||.|.|.|",
-                     "|f|D|....$..|.|.|.f.|",
-                     "|.|.|||||||a|.|D|||.|",
-                     "|.|.......|.|...|...|",
-                     "|.|||||.|||.|.|||.|||",
-                     "|.|.....|...|...a.|.|",
-                     "|.|.|||||d|||||||.|.|",
-                     "|.|.|...|.......|.|.|",
-                     "|.|f|||.|.|||||.|.|d|",
-                     "|.......F.....|.....|",
-                     "|||||||||||||||||||||"
-                     ]
+          levelMap = generateGrid1 0 7 7
+            --  [
+            --          "|||||||||||||||||||||",
+            --          "|.|A...F..|.......|.|",
+            --          "|.|||||||.|.|f|||.|.|",
+            --          "|.f.....|.|.|...|.f.|",
+            --          "|.|||||.|.|.|||.|||.|",
+            --          "|...|.|F|.|...|.|.d.|",
+            --          "|.|a|.|.|.|||||d|.|||",
+            --          "|d|.d.|.|.......|.|.|",
+            --          "|D|.|.|.|||||||||.|.|",
+            --          "|.|.|.|.........|.|F|",
+            --          "|F|||f|||a|||||.|.|.|",
+            --          "|f|D|....$..|.|.|.f.|",
+            --          "|.|.|||||||a|.|D|||.|",
+            --          "|.|.......|.|...|...|",
+            --          "|.|||||.|||.|.|||.|||",
+            --          "|.|.....|...|...a.|.|",
+            --          "|.|.|||||d|||||||.|.|",
+            --          "|.|.|...|.......|.|.|",
+            --          "|.|f|||.|.|||||.|.|d|",
+            --          "|.......F.....|.....|",
+            --          "|||||||||||||||||||||"
+            --          ]
         , openColors = [green]
         , initialPos = (1.5,1.5)
         , initialDir = (1, 1)
     }
-                      
+
+
+
+-- Width should be odd and not less then 5
+-- Height should be odd should be not less then 5
+-- generateGrid1 :: Int -> Int -> Int -> [String]
+generateGrid1 index width height
+    | index == height = [] 
+    | otherwise = [generateRow index width height] 
+        ++ generateGrid1 (index+1) width height   
+
+generateRow :: Int -> Int -> Int -> String
+generateRow index width height
+    | isEven index = concat $ replicate width "|"
+    | otherwise = "|" ++ repled ++ ".|"
+        where 
+            repled = (concat $ replicate ((width - 2) `div` 2 ) ".|" )
+
+isEven :: Int -> Bool
+isEven n = n `rem` 2 == 0
+
+-- generateMap :: RandomGen g => g -> Level
+-- generateMap g = Level {}
+--     where
+--         m = maze g
+--         area = getAreaFromMaze m
+--         inds = generateIndexRange area
+--         newGridMaze = mazeToGrid inds m []
+--         modifiedGridMaze
+
+splitEvery ::Int -> [a] -> [[a]]
+splitEvery _ [] = []
+splitEvery n list = first : (splitEvery n rest)
+    where
+    (first,rest) = splitAt n list
+
+joinString :: [[String]] -> String
+joinString [] = ""
+joinString (x:xs) = x!!0 ++ joinString xs
+
+-- toBadGrid :: Int -> Int -> [[String]] -> String -> [[]] -> [[String]]
+-- toBadGrid width height arr cur res
+--     |
+
+-- 11x21

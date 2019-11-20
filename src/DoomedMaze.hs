@@ -14,7 +14,10 @@ import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.String
-
+--
+import System.Random
+import MazeGenerator
+import Space
 
 -- | Game state
 data State = State
@@ -303,12 +306,37 @@ objectColor (Button color) = color
 -- | Initial ActivityOf
 coreActivity :: ActivityOf State
 coreActivity = ActivityOf
-                   (levelToState (levels !! 0))
+                   (levelToState (head levels))
+                  --  (levelToState (levels !! 0))
                    handle
                    render
 
 {- MAIN -}
 
+getLevelArr :: Level -> [String]
+getLevelArr Level {..} = levelMap
+
+addBorders :: [String] -> [String]
+addBorders curMap = map verticalBorder (horizontalBorder ++ curMap ++ horizontalBorder)
+  where
+    horizontalBorder = [concat $ replicate width "|"]
+    verticalBorder x =  "|" ++ x ++ "|"
+    width = length (head curMap)
+
+
+
 game :: IO ()
 game = do 
-  runInteraction (withManyLevels levels levelToState isLevelComplete coreActivity)
+  g <- newStdGen
+  let m = maze g
+  let area = getAreaFromMaze m
+  let inds = generateIndexRange area
+  let stuff = map joinString (splitEvery 30 (mazeToGrid inds m []))
+  let lvls = [Level { levelMap = (addBorders stuff), openColors = []
+        , initialPos = (1.5,1.5)
+        , initialDir = (0, 0)}]
+  -- putStrLn (show $ map joinString (splitEvery 10 (mazeToGrid inds m [])))
+  runInteraction (withManyLevels lvls levelToState isLevelComplete coreActivity)
+  -- genMaze (Area (-5, -5) (5, 5)) g)
+    -- where
+  -- runInteraction (withManyLevels levels levelToState isLevelComplete coreActivity)
