@@ -14,7 +14,10 @@ import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.Text as T
 import Data.String
-
+--
+import System.Random
+import MazeGenerator
+import Space
 
 -- | Game state
 data State = State
@@ -79,6 +82,7 @@ canMove (x,y) openDoorsColors m = canMove' candidate1 && canMove' candidate2
         candidate1 = m A.! (floor x, floor y)
         candidate2 = m A.! (ceiling (x - 0.99), ceiling (y - 0.99))
         canMove' Wall = False
+        canMove' Entrance = False
         canMove' Floor = True
         canMove' Exit = True
         canMove' (Door color) = color `elem` openDoorsColors
@@ -262,19 +266,20 @@ runInteraction (ActivityOf state0 handle draw)
 
 -- | Turn an interactive program into one with multiple levels.
 withManyLevels
-    :: [level]
+    :: RandomGen g => g
+    -> (g -> Int -> level) 
     -> (level -> world)
     -> (world -> Bool)
     -> ActivityOf world -- ^ 'interactionOf'.
     -> ActivityOf (LevelState world)
 withManyLevels
-    levels toWorld isLevelComplete (ActivityOf state0 handle draw)
+    gen genLev toWorld isLevelComplete (ActivityOf state0 handle draw)
     = ActivityOf state0' handle' draw'
         where
-            state0' = Running 0 (toWorld (levels !! 0))
+            state0' = Running 0 (toWorld (genLev gen (0)))
             handle' s (Running levelNumber state)
                 = if isLevelComplete state
-                  then Running (levelNumber + 1) (toWorld (levels !! (levelNumber + 1)))
+                  then Running (levelNumber + 1) (toWorld (genLev gen (levelNumber + 1)))
                   else Running levelNumber (handle s state)
             draw' (Running levelNumber state) = draw state
 
@@ -296,19 +301,41 @@ isLevelComplete State{..} = exitReached worldMap playerPos
 objectColor :: GameObject -> Color
 objectColor Wall = gray
 objectColor Floor = white
-objectColor Exit = red
+objectColor Exit = aquamarine
+objectColor Entrance = red
 objectColor (Door color) = color
 objectColor (Button color) = color
 
 -- | Initial ActivityOf
 coreActivity :: ActivityOf State
 coreActivity = ActivityOf
-                   (levelToState (levels !! 0))
+                   (levelToState (head levels))
                    handle
                    render
 
 {- MAIN -}
 
+getLevelArr :: Level -> [String]
+getLevelArr Level {..} = levelMap
+
+
+getSplitNum:: Area -> Int
+getSplitNum (Area (x1, y1) (x2,y2)) = y2 + 1
+
+generateLevel :: RandomGen g => g -> Int -> Level
+generateLevel gen lvlNum = Level { 
+            levelMap = (addBorders stuff),
+            openColors = [],
+            initialPos = (1.5,1.5),
+            initialDir = (0, 0)}
+  where
+    maze = generateDifficultLevel gen lvlNum
+    area = getAreaFromMaze maze
+    inds = generateIndexRange area
+    stuff = map joinString (splitEvery (getSplitNum area) (mazeToGrid inds maze []))--
+
+
 game :: IO ()
 game = do 
-  runInteraction (withManyLevels levels levelToState isLevelComplete coreActivity)
+  g <- newStdGen
+  runInteraction (withManyLevels g generateLevel levelToState isLevelComplete coreActivity)
