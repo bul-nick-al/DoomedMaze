@@ -58,45 +58,35 @@ union (Space xs ax) (Space ys ay) = Space (xs ++ ys) (maxArea' ax ay)
 fromList :: [(Coords, a)] -> Space a
 fromList = foldMap (uncurry singleton)
 
--- | Построить пространство из списка точек.
-fromCoordsList :: [Coords] -> Space Coords
+fromCoordsList :: [Coords] -> Space String 
 fromCoordsList = fromList . map delta
 
--- | Оставить в пространстве только указанную область.
 crop :: Area -> Space a -> Space a
 crop area space = Space
   { spaceObjects = filter (inArea area . fst) (spaceObjects space)
   , spaceArea    = Just area
   }
 
--- | Поменять элементы кортежа местами.
 swap :: (a, b) -> (b, a)
 swap (x, y) = (y, x)
 
--- | Дублировать значение.
-delta :: a -> (a, a)
-delta x = (x, x)
+delta :: a -> (a, String)
+delta x = (x, "|")
 
--- | Транспонировать область.
 transposeArea :: Area -> Area
 transposeArea (Area lb rt) = Area (swap lb) (swap rt)
 
--- | Транспонировать пространство.
 transposeSpace :: Space a -> Space a
 transposeSpace (Space objects area) = Space
   (fmap (\(coords, x) -> (swap coords, x)) objects)
   (fmap transposeArea area)
 
--- | Разбить область на левую и правую по заданной вертикали.
--- Ячейки, находящиеся на вертикали не попадают ни в одну из подобластей.
 splitH :: Int -> Area -> (Area, Area)
 splitH x (Area (l, b) (r, t)) = (left, right)
   where
     left  = Area (l, b) (x - 1, t)
     right = Area (x + 1, b) (r, t)
 
--- | Определить, является ли область "узкой".
--- Область считается "узкой", если её ширина или высота меньше 2.
 thinArea :: Area -> Bool
 thinArea (Area (l, b) (r, t)) = r <= l + 1 || t <= b + 1
     
@@ -105,12 +95,4 @@ generateIndexRange :: Area -> [Coords]
 generateIndexRange (Area (x1, y1) (x2,y2)) = 
     [(i,j) | i <- [(-x1)..x2], j <- [(-y1)..y2]]
 
-
--- import qualified Data.IntMap.Strict as M
-
--- createCoordsMap :: Int -> Int -> M.IntMap (Int,Int)
--- createCoordsMap width height = M.fromList (zip keys values)
---     where 
---         keys = [0..width*height]
---         values = [(i,j) | i <- [0..(width-1)], j <- [0..(height-1)]]
 

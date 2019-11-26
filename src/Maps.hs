@@ -11,7 +11,7 @@ import MazeGenerator
 import Space
 import System.Random
 
-data GameObject = Wall | Door Color | Button Color | Floor | Exit deriving (Show, Eq)
+data GameObject = Wall | Door Color | Button Color | Floor| Entrance | Exit deriving (Show, Eq)
 type Map = A.Array (Int, Int) GameObject
 
 
@@ -39,21 +39,20 @@ symbolToObject :: Char -> GameObject
 symbolToObject '|' = Wall
 symbolToObject '.' = Floor
 symbolToObject '$' = Exit
+symbolToObject '%' = Entrance
 symbolToObject char = colorObject char
 
 colorObject :: Char -> GameObject
 colorObject 'a' = Door yellow
-colorObject 'b' = Door grey
+colorObject 'b' = Door magenta
 colorObject 'c' = Door blue
 colorObject 'd' = Door green
-colorObject 'e' = Door red
-colorObject 'f' = Door azure
+colorObject 'e' = Door azure
 colorObject 'A' = Button yellow
-colorObject 'B' = Button grey
+colorObject 'B' = Button magenta
 colorObject 'C' = Button blue
 colorObject 'D' = Button green
-colorObject 'E' = Button red
-colorObject 'F' = Button azure
+colorObject 'E' = Button azure
 colorObject _ = Floor
 
 
@@ -180,6 +179,15 @@ splitEvery n list = first : (splitEvery n rest)
 joinString :: [[String]] -> String
 joinString [] = ""
 joinString (x:xs) = x!!0 ++ joinString xs
+
+
+addBorders :: [String] -> [String]
+addBorders curMap = map verticalBorder (lowerHorizontalBorder ++ curMap ++ upperHorizontalBorder)
+  where
+    upperHorizontalBorder = [concat $ ((replicate (width-1) "|")++["$"] )]
+    lowerHorizontalBorder = [concat $ (["%"]++(replicate (width-1) "|"))]
+    verticalBorder x =  "|" ++ x ++ "|"
+    width = length (head curMap)
 
 -- toBadGrid :: Int -> Int -> [[String]] -> String -> [[]] -> [[String]]
 -- toBadGrid width height arr cur res
