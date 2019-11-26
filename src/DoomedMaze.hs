@@ -276,7 +276,7 @@ withManyLevels
     gen genLev toWorld isLevelComplete (ActivityOf state0 handle draw)
     = ActivityOf state0' handle' draw'
         where
-            state0' = Running 0 (toWorld (genLev gen (0)))
+            state0' = Running 0 (state0)
             handle' s (Running levelNumber state)
                 = if isLevelComplete state
                   then Running (levelNumber + 1) (toWorld (genLev gen (levelNumber + 1)))
@@ -307,9 +307,9 @@ objectColor (Door color) = color
 objectColor (Button color) = color
 
 -- | Initial ActivityOf
-coreActivity :: ActivityOf State
-coreActivity = ActivityOf
-                   (levelToState (head levels))
+coreActivity ::RandomGen g => g -> ActivityOf State
+coreActivity gen = ActivityOf
+                   (levelToState (generateLevel gen 0))
                    handle
                    render
 
@@ -338,4 +338,4 @@ generateLevel gen lvlNum = Level {
 game :: IO ()
 game = do 
   g <- newStdGen
-  runInteraction (withManyLevels g generateLevel levelToState isLevelComplete coreActivity)
+  runInteraction (withManyLevels g generateLevel levelToState isLevelComplete (coreActivity g))

@@ -95,7 +95,7 @@ clearExit m = newMaze
         Area (s, t) (a, b) = getAreaFromMaze m
         updatedSpaceObjects = delete ((a,b),"|") (getObjsFromMaze m)
         updatedSpaceObjects' = delete ((a-1,b),"|")  (getObjsFromMaze m)
-        updatedSpaceObjects'' =delete ((a,b-1),"|")  (getObjsFromMaze m)
+        updatedSpaceObjects'' = delete ((a,b-1),"|")  (getObjsFromMaze m)
         newMaze = Space {spaceArea =Just (Area (s, t) (a, b)), spaceObjects = updatedSpaceObjects''}
 
 filterEmpty:: Maze -> Maze
