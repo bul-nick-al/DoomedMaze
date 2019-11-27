@@ -26,7 +26,7 @@ inArea (Area (l, b) (r, t)) (i, j)
 -- | Пространство с объектами.
 data Space a = Space
   { spaceObjects :: [(Coords, a)] -- ^ Объекты в пространстве.
-  , spaceArea    :: Maybe Area    -- ^ Границы пространства.
+  , spaceArea    :: Maybe Area    -- ^ Границы пространства.q
   } deriving (Show, Functor, Foldable)
 
 
