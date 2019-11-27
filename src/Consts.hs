@@ -3,8 +3,8 @@ module Consts where
 
 -- | Screen dimensions
 screenWidth, screenHeight :: Int
-screenWidth = 80
-screenHeight = 60
+screenWidth = 210
+screenHeight = 180
 
 -- | Field of view
 fov :: Double

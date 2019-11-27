@@ -11,7 +11,7 @@ import MazeGenerator
 import Space
 import System.Random
 
-data GameObject = Wall | Door Color | Button Color | Floor| Entrance | Exit deriving (Show, Eq)
+data GameObject = Wall | Door Color | Button Color | Floor| Entrance | Exit | Battery |Border deriving (Show, Eq)
 type Map = A.Array (Int, Int) GameObject
 
 

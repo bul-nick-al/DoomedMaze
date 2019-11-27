@@ -18,7 +18,6 @@ import Data.String
 import System.Random
 import MazeGenerator
 import Space
-
 -- | Game state
 data State = State
   { worldMap :: !Map -- Current level map
@@ -67,12 +66,16 @@ handleState (TimePassing dt) w@(State {..}) =
           newPos = calcNewPosition w dt
           newOpenDoorsColors = calcNewOpenDoorsColors w newPos newInsideButton
           newDir = calcNewDir w
-          newEnergy = if showMap then energy - dt*10 else energy
+          newEnergy = calcNewEnergy w dt
           newShowMap = (S.member "M" keysPressed)
           decPos = if (canMove newPos newOpenDoorsColors worldMap) then newPos else playerPos
           newInsideButton = isInsideButton newPos worldMap
 
-
+calcNewEnergy :: State -> Double -> Double
+calcNewEnergy (State {..}) dt
+    | showMap = energy - dt*5
+    | length keysPressed == 0 && energy < 100 = energy + dt*10
+    | otherwise = energy
 calcNewDir :: State -> Vector
 calcNewDir (State {..})
     | S.member "Right" keysPressed = rotatedVector (-0.05) playerDir
@@ -104,14 +107,18 @@ calcNewPosition (State {..}) dt
 canMove :: Vector -> [Color] -> Map -> Bool
 canMove (x,y) openDoorsColors m = canMove' candidate1 && canMove' candidate2
     where
-        candidate1 = m A.! (floor x, floor y)
-        candidate2 = m A.! (ceiling (x - 0.99), ceiling (y - 0.99))
+        candidate1 = getCandidate (floor x, floor y)
+        candidate2 = getCandidate (ceiling (x - 0.99), ceiling (y - 0.99))
         canMove' Wall = False
+        canMove' Border = False
         canMove' Entrance = False
         canMove' Floor = True
         canMove' Exit = True
         canMove' (Door color) = color `elem` openDoorsColors
         canMove' (Button _) = True
+        getCandidate coord
+                                 | coord `elem` (A.indices m) = m A.! coord
+                                 | otherwise = Border
 
 -- | Side of ray hit
 data HitSide = Inside | N | S | E | W
@@ -166,17 +173,53 @@ collision m pos cameraDir rayDir isSeen =
   $ cellsVisitedByRay pos rayDir
  where
   convert (side, coord, d) =
-    (side, m A.! coord, d * cos (angleBetween cameraDir rayDir))
+    (side, getObj coord, d * cos (angleBetween cameraDir rayDir))
   isWall (_, gameObj, _) = isSeen gameObj
+  getObj coord
+            | coord `elem` (A.indices m) = m A.! coord
+            | otherwise = Border
 
-isNotButton :: GameObject -> Bool
-isNotButton Floor = False
-isNotButton (Button _) = False
-isNotButton _ = True
+-- | Get collision with object data
+collision2d
+  :: Map
+  -> Vector -- starting point
+  -> Vector -- camera direction
+  -> Vector -- ray direction
+  -> (GameObject -> Bool) -- the objects to save
+  -> (GameObject -> Bool) -- stopping object
+  -> [(HitSide, GameObject, Double {- distance -})]
+collision2d m pos cameraDir rayDir isSeen shouldStop =
+  filter isSeen'
+  $ takeWhile shouldStop'
+  $ map convert
+  $ cellsVisitedByRay pos rayDir
+ where
+  convert (side, coord, d) =
+    (side, getObj coord, d * cos (angleBetween cameraDir rayDir))
+  isSeen' (_, gameObj, _) = isSeen gameObj
+  shouldStop' (_, gameObj, _) = shouldStop gameObj
+  getObj coord
+            | coord `elem` (A.indices m) = m A.! coord
+            | otherwise = Border
+
+
+
+isObstacle :: GameObject -> Bool
+isObstacle Floor = False
+isObstacle (Button _) = False
+isObstacle (Battery) = False
+isObstacle _ = True
 
 isButton :: GameObject -> Bool
 isButton Floor = False
+isButton Battery = False
 isButton _ = True
+
+
+isBattery :: GameObject -> Bool
+isBattery Floor = False
+isBattery (Button _) = False
+isBattery _ = True
 
 -- | Function to draw floor
 drawFloor:: Picture
@@ -216,7 +259,7 @@ world State{..} =
   ratio = 20 / i2d screenWidth
 
 -- | Function to render buttons
-renderButtons:: Map -> [Color]-> Point -> Vector -> Picture
+renderButtons :: Map -> [Color]-> Point -> Vector -> Picture
 renderButtons m openDoors pos dir =
   pictures (map door [-halfScreenWidth .. halfScreenWidth])
  where
@@ -228,16 +271,38 @@ renderButtons m openDoors pos dir =
     in case objType of
        (Button bc) -> (colored color $ thickPolygon 0.3
                                                    [(x-0.5, -(y/5)), (x+0.5, -(y/5)), (x+0.5, (y/5)), (x-0.5, (y/5))])
-                      <> (colored (getSecondColor bc) $ thickPolyline 1.05 [(x, -(y/5)), (x, (y/5))])
+                      <> (colored (getSecondColor bc) $ thickPolyline 1.1 [(x, -(y/5)), (x, (y/5))])
        _ -> blank
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
   getSecondColor c | c `elem` openDoors = white
                    | otherwise = black
 
 
+-- | Function to render walls
+renderBatteries :: Map -> Point -> Vector -> Picture
+renderBatteries m pos dir =
+  pictures (map wallSlice [-halfScreenWidth .. halfScreenWidth])
+ where
+  wallSlice i =
+    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isBattery
+        x = i2d i
+        y = (i2d halfScreenHeight) / distance
+        color = shadowedObjectColor hitSide objType
+    in case objType of
+       (Button _) -> blank
+       _ -> colored color $ thickPolyline 1.05 [(x, -y), (x, y)]
+  rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
+
+--darkness :: State -> Picture
+--darkness _ = blank
+
+charger ::  Picture
+charger = colored (RGBA 0 0 0 (0.5)) $ solidCircle 1
+
 darkness :: State -> Picture
-darkness State{..} = colored (RGBA 0 0 0 (0.5)) $ solidCircle 10
-                     <> (colored (RGBA 0 0 0 (0.9)) $ solidRectangle 20.25 30)
+darkness State{..} = (colored (RGBA 0 0 0 (alpha)) $ solidRectangle 20.25 30)
+    where
+        alpha = (100 - energy)/100
 
 battery :: State -> Picture
 battery State{..} = translated 9 7 (thickRectangle 0.05 1 3
@@ -253,7 +318,7 @@ walls m pos dir =
   pictures (map wallSlice [-halfScreenWidth .. halfScreenWidth])
  where
   wallSlice i =
-    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isNotButton
+    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isObstacle
         x = i2d i
         y = (i2d halfScreenHeight) / distance
         color = shadowedObjectColor hitSide objType
@@ -370,6 +435,7 @@ isLevelComplete State{..} = exitReached worldMap playerPos
 objectColor :: GameObject -> Color
 objectColor Wall = gray
 objectColor Floor = white
+objectColor Border = RGBA 0 0 0 (0.0)
 objectColor Exit = aquamarine
 objectColor Entrance = red
 objectColor (Door color) = color
@@ -381,6 +447,8 @@ coreActivity = ActivityOf
                    (levelToState (head levels))
                    handle
                    render
+
+
 
 {- MAIN -}
 
