@@ -155,16 +155,40 @@ toUpper s
 exit :: Coords -> Maze
 exit cors = singleton cors "$"
 
+generateRandomCoords :: RandomGen g => g -> Area -> (Coords, g)
+generateRandomCoords g (Area (l, b) (r, t)) = ((i,j), g'')
+    where 
+        (i, g')  = randomR (l,r) g
+        (j, g'') = randomR (b,t) g'
+
+
+generateBatteriesList :: RandomGen g => g-> Maze -> [(Coords, String)] -> Int -> [(Coords, String)]
+generateBatteriesList gen m res lim
+    | length res >= lim = res
+    | isObject ranCoords m = generateBatteriesList gen' m res lim
+    | otherwise = generateBatteriesList gen' m ([(ranCoords,"#")] ++ res) lim
+        where
+            (ranCoords, gen') = generateRandomCoords gen (getAreaFromMaze m)
+
+addBatteries :: RandomGen g => g -> Maze -> Int -> Maze
+addBatteries g m lim = updatedMaze
+    where
+        updatedMaze = Space {spaceArea = Just (getAreaFromMaze m), spaceObjects = oldMazeObjects ++ updatedSpaceObjects}
+        oldMazeObjects = getObjsFromMaze m
+        updatedSpaceObjects = generateBatteriesList g m [] lim
+
+
 generateDifficultLevel ::RandomGen g => g -> Int  -> Maze
 generateDifficultLevel g dif
-    | dif < 3 = filterEmpty (clearExit (genMaze (Area (0,0) (10+dif, 11+dif)) g (doorsList 1) [] <> exit (10+dif, 11+dif)))
-    | dif < 5 = filterEmpty (clearExit (genMaze (Area (0,0) (13+dif, 15+dif)) g (doorsList 2) [] <> exit (13+dif, 15+dif)))
-    | dif < 7 = filterEmpty (clearExit (genMaze (Area (0,0) (15+dif, 21+dif)) g (doorsList 3) [] <> exit (15+dif, 21+dif)))
-    | dif < 9 = filterEmpty (clearExit (genMaze (Area (0,0) (20+dif, 25+dif)) g (doorsList 4) [] <> exit (20+dif, 25+dif)))
-    | otherwise = filterEmpty (clearExit (genMaze (Area (0,0) (10 + dif *2, 15 + dif*2)) g (doorsList 5) [] <> exit (10 + dif *2, 15 + dif*2)))
+    | dif < 3 = mazeModification (genMaze (Area (0,0) (10+dif, 11+dif)) g (doorsList 1) [] ) 1
+    | dif < 5 = mazeModification(genMaze (Area (0,0) (13+dif, 15+dif)) g (doorsList 2) [] ) 1 
+    | dif < 7 = mazeModification(genMaze (Area (0,0) (15+dif, 21+dif)) g (doorsList 3) []) 2
+    | dif < 9 = mazeModification (genMaze (Area (0,0) (20+dif, 25+dif)) g (doorsList 4) [] ) 3
+    | otherwise = mazeModification (genMaze (Area (0,0) (10 + dif *2, 15 + dif*2)) g (doorsList 5) []) (dif `div` 2)
         where
             doorsList num = take num allDoors
-
+            mazeModification maze bs = addBatteries g (filterEmpty (clearExit (maze <> appendExit maze))) bs
+            appendExit m = exit (getMazeSize m)
 
 mazeToGrid :: [(Int,Int)] -> Maze -> [[String]] -> [[String]]
 mazeToGrid [] _ res = res
@@ -186,6 +210,12 @@ getAreaFromMaze :: Maze -> Area
 getAreaFromMaze Space {..} = case spaceArea of
                                 Just value -> value
                                 Nothing    ->  Area (0,0) (0,0) 
+
+getMazeSize :: Maze -> Coords
+getMazeSize m = getSecondCoords area
+    where 
+        area = getAreaFromMaze m 
+        getSecondCoords (Area c d) = d 
 
 getObjsFromMaze :: Maze -> [(Coords,String)]
 getObjsFromMaze Space {..} = spaceObjects
