@@ -13,6 +13,7 @@ import Doors
 import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.Text as T
+import qualified Data.Fixed as F
 import Data.String
 --
 import System.Random
@@ -28,6 +29,7 @@ data State = State
   , keysPressed :: !(S.Set T.Text) -- Currently pressed button
   , energy :: Double
   , showMap :: Bool
+  , time :: Double
   }
   deriving (Show)
 
@@ -61,20 +63,32 @@ handleState (TimePassing dt) w@(State {..}) =
        , insideButton = newInsideButton
        , energy = newEnergy
        , showMap = newShowMap
+       , time = newTime
+       , worldMap = newMap
        }
         where
           newPos = calcNewPosition w dt
           newOpenDoorsColors = calcNewOpenDoorsColors w newPos newInsideButton
           newDir = calcNewDir w
-          newEnergy = calcNewEnergy w dt
+          newEnergy = calcNewEnergy w dt pickedBattery
           newShowMap = (S.member "M" keysPressed)
           decPos = if (canMove newPos newOpenDoorsColors worldMap) then newPos else playerPos
           newInsideButton = isInsideButton newPos worldMap
+          newTime = time + dt
+          (newMap, pickedBattery)= checkBatteries worldMap newPos
 
-calcNewEnergy :: State -> Double -> Double
-calcNewEnergy (State {..}) dt
+checkBatteries :: Map -> Vector -> (Map, Bool)
+checkBatteries m pos = case (isInsideBattery pos m) of
+                  (True, Just coords) -> (m A.// [(coords, Floor)], True)
+                  _ -> (m, False)
+
+
+
+calcNewEnergy :: State -> Double -> Bool -> Double
+calcNewEnergy (State {..}) dt pickedBattery
+    | pickedBattery = 100
     | showMap = energy - dt*5
-    | length keysPressed == 0 && energy < 100 = energy + dt*10
+    | length keysPressed == 0 && energy < 100 = energy + dt
     | otherwise = energy
 calcNewDir :: State -> Vector
 calcNewDir (State {..})
@@ -116,6 +130,7 @@ canMove (x,y) openDoorsColors m = canMove' candidate1 && canMove' candidate2
         canMove' Exit = True
         canMove' (Door color) = color `elem` openDoorsColors
         canMove' (Button _) = True
+        canMove' Battery = True
         getCandidate coord
                                  | coord `elem` (A.indices m) = m A.! coord
                                  | otherwise = Border
@@ -212,7 +227,6 @@ isObstacle _ = True
 
 isButton :: GameObject -> Bool
 isButton Floor = False
-isButton Battery = False
 isButton _ = True
 
 
@@ -251,6 +265,7 @@ render state@(State{..}) = battery state
 world :: State -> Picture
 world State{..} =
   scaled ratio ratio ((renderButtons worldMap
+                                     time
                                      openDoorsColors
                                      playerPos
                                      playerDir)
@@ -259,8 +274,8 @@ world State{..} =
   ratio = 20 / i2d screenWidth
 
 -- | Function to render buttons
-renderButtons :: Map -> [Color]-> Point -> Vector -> Picture
-renderButtons m openDoors pos dir =
+renderButtons :: Map -> Double -> [Color]-> Point -> Vector -> Picture
+renderButtons m time openDoors pos dir =
   pictures (map door [-halfScreenWidth .. halfScreenWidth])
  where
   door i =
@@ -269,14 +284,32 @@ renderButtons m openDoors pos dir =
         y = (i2d halfScreenHeight) / distance
         color = shadowedObjectColor hitSide objType
     in case objType of
-       (Button bc) -> (colored color $ thickPolygon 0.3
-                                                   [(x-0.5, -(y/5)), (x+0.5, -(y/5)), (x+0.5, (y/5)), (x-0.5, (y/5))])
-                      <> (colored (getSecondColor bc) $ thickPolyline 1.1 [(x, -(y/5)), (x, (y/5))])
+       (Button bc) -> renderButton x y color openDoors bc
+       Battery -> colored violet $ thickPolyline 1.2 [(x, -y * (F.mod' time 1)), (x, y * (F.mod' time 1))]
        _ -> blank
-  rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
-  getSecondColor c | c `elem` openDoors = white
-                   | otherwise = black
 
+  rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
+
+
+
+renderButton x y color openDoors bc = (colored color
+                                  $ thickPolygon 0.3
+                                                 [(x-0.5, -(y/5)),
+                                                  (x+0.5, -(y/5)),
+                                                  (x+0.5, (y/5)),
+                                                  (x-0.5, (y/5))])
+                                  <> (colored (getSecondColor bc)
+                                              $ thickPolyline 1.1
+                                                              [(x, -(y/5)),
+                                                              (x, (y/5))])
+    where
+        getSecondColor c | c `elem` openDoors = white
+                           | otherwise = black
+
+renderBattery x y time = colored green
+                                  $ thickPolyline 1.2 [(x, -y/5), (x, y/5)]
+--    where
+--        c = time - (i2d (floor time))
 
 -- | Function to render walls
 renderBatteries :: Map -> Point -> Vector -> Picture
@@ -290,7 +323,7 @@ renderBatteries m pos dir =
         color = shadowedObjectColor hitSide objType
     in case objType of
        (Button _) -> blank
-       _ -> colored color $ thickPolyline 1.05 [(x, -y), (x, y)]
+       _ -> colored color $ thickPolyline 1.2 [(x, -y), (x, y)]
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
 --darkness :: State -> Picture
@@ -324,7 +357,7 @@ walls m pos dir =
         color = shadowedObjectColor hitSide objType
     in case objType of
        (Button _) -> blank
-       _ -> colored color $ thickPolyline 1.05 [(x, -y), (x, y)]
+       _ -> colored color $ thickPolyline 1.15 [(x, -y), (x, y)]
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
 -- | Function to render primitive shadows based on the side where rays hit
@@ -338,8 +371,13 @@ shadowedObjectColor hitSide objType = colorModifier hitSide (objectColor objType
 -- | Function to render hud
 hud :: State -> Picture
 hud state@(State {..}) = if showMap
-                         then translated (-9) 6 $ scaled 0.2 0.2 $ minimap state
+                         then translated (-w'/2) (-h'/2) $ scaled scale scale $ minimap state
                          else blank
+                            where
+                               (_, (w, h)) = A.bounds worldMap
+                               w' = i2d w * scale
+                               h' = i2d h * scale
+                               scale = 0.5
 
 -- | Function to render minimap
 minimap :: State -> Picture
@@ -353,8 +391,8 @@ minimap State{..} =
            $ colored red
            $ (solidCircle 0.5 & polyline [(0,0), playerDir])
   drawCell (Button color) = (colored (objectColor (Button color)) $ solidCircle 0.5)
-                            <> (colored white $ solidRectangle 1 1)
-  drawCell obj = colored (objectColor obj) $ solidRectangle 1 1
+                            <> (colored white $ solidRectangle 1.05 1.05)
+  drawCell obj = colored (objectColor obj) $ solidRectangle 1.05 1.05
 
 
 -- | Wrapper for activityOf args
@@ -407,7 +445,7 @@ withManyLevels
     gen genLev toWorld isLevelComplete (ActivityOf state0 handle draw)
     = ActivityOf state0' handle' draw'
         where
-            state0' = WithLevel 0 (toWorld (genLev gen (0)))
+            state0' = WithLevel 0 state0
             handle' s (WithLevel levelNumber state)
                 = if isLevelComplete state
                   then WithLevel (levelNumber + 1) (toWorld (genLev gen (levelNumber + 1)))
@@ -425,6 +463,7 @@ levelToState Level{..} = State { worldMap = parseMap levelMap
                                 , keysPressed = S.empty
                                 , showMap = False
                                 , energy = 100.0
+                                , time = 0.0
                                 }
 
 -- | Is current level complete given some game 'State'?
@@ -440,11 +479,12 @@ objectColor Exit = aquamarine
 objectColor Entrance = red
 objectColor (Door color) = color
 objectColor (Button color) = color
+objectColor Battery = violet
 
 -- | Initial ActivityOf
-coreActivity :: ActivityOf State
-coreActivity = ActivityOf
-                   (levelToState (head levels))
+coreActivity ::RandomGen g => g -> ActivityOf State
+coreActivity gen = ActivityOf
+                   (levelToState (generateLevel gen 0))
                    handle
                    render
 
@@ -465,7 +505,7 @@ generateLevel gen lvlNum = Level {
             levelMap = (addBorders stuff),
             openColors = [],
             initialPos = (1.5,1.5),
-            initialDir = (0, 0)}
+            initialDir = (0.5, 0.5)}
   where
     maze = generateDifficultLevel gen lvlNum
     area = getAreaFromMaze maze
@@ -476,4 +516,4 @@ generateLevel gen lvlNum = Level {
 game :: IO ()
 game = do
   g <- newStdGen
-  runInteraction (withStartScreen (withManyLevels g generateLevel levelToState isLevelComplete coreActivity))
+  runInteraction (withStartScreen (withManyLevels g generateLevel levelToState isLevelComplete (coreActivity g)))

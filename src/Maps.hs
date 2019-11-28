@@ -40,6 +40,7 @@ symbolToObject '|' = Wall
 symbolToObject '.' = Floor
 symbolToObject '$' = Exit
 symbolToObject '%' = Entrance
+symbolToObject '#' = Battery
 symbolToObject char = colorObject char
 
 colorObject :: Char -> GameObject
@@ -188,6 +189,10 @@ addBorders curMap = map verticalBorder (lowerHorizontalBorder ++ curMap ++ upper
     lowerHorizontalBorder = [concat $ (["%"]++(replicate (width-1) "|"))]
     verticalBorder x =  "|" ++ x ++ "|"
     width = length (head curMap)
+
+
+
+
 
 -- toBadGrid :: Int -> Int -> [[String]] -> String -> [[]] -> [[String]]
 -- toBadGrid width height arr cur res

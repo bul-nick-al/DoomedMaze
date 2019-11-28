@@ -187,7 +187,7 @@ generateDifficultLevel g dif
     | otherwise = mazeModification (genMaze (Area (0,0) (10 + dif *2, 15 + dif*2)) g (doorsList 5) []) (dif `div` 2)
         where
             doorsList num = take num allDoors
-            mazeModification maze bs = addBatteries g (filterEmpty (clearExit (maze <> appendExit maze))) bs
+            mazeModification maze bs = addBatteries g (clearExit (filterEmpty (maze <> appendExit maze))) bs
             appendExit m = exit (getMazeSize m)
 
 mazeToGrid :: [(Int,Int)] -> Maze -> [[String]] -> [[String]]
@@ -224,3 +224,6 @@ isObject:: Coords -> Maze -> Bool
 isObject coords Space{..} = any (\x -> (fst x) == coords) spaceObjects 
 
 -- generateGrid width height = replicate height (replicate width "|") 
+
+--addBatteries :: [String] -> [String]
+--addBatteries g =
