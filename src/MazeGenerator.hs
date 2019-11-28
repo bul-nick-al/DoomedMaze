@@ -12,54 +12,25 @@ import Space
 
 type Maze = Space String
 
+-- | Utility function for debugging 
 prnt ::Show a => a -> a
 prnt s = trace (show s) s
 
--- | Транспонировать лабиринт.
+-- | Transpose maze
 transposeMaze :: Maze -> Maze
-transposeMaze = transposeSpace --fmap swap . transposeSpace 
+transposeMaze = transposeSpace 
 
--- | Сгенерировать случайные координаты для вертикальной стены.
--- Координата x указывает положение стены, а координата y — положение прохода в стене.
--- Чтобы стены не склеивались и лабиринт оставался связным,
--- стены всегда создаются на нечётных позициях, а проходы — на чётных.
+-- | Generating random coords for vertical wall. 
+-- X coordinate shows the position of wall, coordinate y - the position of hole in the wall
+-- In order to prevent changes gluing and keep maze connected, walls are created on odd 
+-- positions, ways on even.
 randomWallCoords :: RandomGen g => Area -> g -> (Coords, g)
 randomWallCoords (Area (l, b) (r, t)) g = ((2 * i + 1, 2 * j), g'')
     where
     (i, g')  = randomR (l `div` 2, (r - 1) `div` 2) g
     (j, g'') = randomR ((b + 1) `div` 2, t `div` 2) g'
 
--- | Создать вертикальную стену с заданными координатами.
--- Координата x указывает положение стены, а координата y — положение прохода в стене.
--- mkVerticalWall :: Coords -> Area -> Maze
--- mkVerticalWall (i, j) (Area (_, b) (_, t)) = fromCoordsList [ (i, y) | y <- [b..t], y /= j ]
-
--- | Сгенерировать случайный лабиринт в заданной прямоугольной области.
--- Генерация происходит при помощи рекурсивного разделения области
--- стенами с одним проходом.
---
--- для левой и правой подобластей мы вызываем genMaze рекурсивно,
--- транспонируя обе подобласти, а затем транспонируя обратно
--- полученные подлабиринты
-
-
-wallCoordsToMazeWithObj :: String -> Coords -> Area -> Maze
-wallCoordsToMazeWithObj obj (i, j) (Area (_, b) (_, t)) = fromList coordsList
-    where 
-        coordsList = zip  [ (i, y) | y <- range ] ks
-        ks = map getK range
-        range = [b..t]
-        getK y' = if y' == j then "|" else obj
-
-createRandomWall :: RandomGen g => Area -> g -> String -> (Maze, g, Int) -- !
-createRandomWall (Area (l, b) (r, t)) g obj = (wall, g'', i)
-    where
-        area = Area (l, b) (r, t)
-        (i, g')  = randomR (l `div` 2, (r - 1) `div` 2) g
-        (j, g'') = randomR ((b + 1) `div` 2, t `div` 2) g'
-        wall = wallCoordsToMazeWithObj obj (2 * i + 1, 2 * j) area
-
-
+-- | Create a Maze object for the wall, given coords, Area and object on the pass
 createVerticalWall :: Coords -> Area -> String -> Maze
 createVerticalWall (i, j) (Area (_, b) (_, t)) obj = fromList coordsList
     where 
@@ -76,7 +47,7 @@ head' :: [a] -> Maybe a
 head' []     = Nothing
 head' (x:xs) = Just x
 
-
+-- | Function to generate button in random position.
 generateButtonRandomly :: RandomGen g => g -> Area -> String -> (Maze,g)
 generateButtonRandomly g (Area (l, b) (r, t)) obj = (maze, g'')
     where 
@@ -89,6 +60,7 @@ deleteObjFromList :: [String] -> String -> [String]
 deleteObjFromList [] _ = []
 deleteObjFromList lst str = delete str lst
 
+-- | Function that guarantees that exit is available.
 clearExit:: Maze -> Maze
 clearExit m = newMaze
     where
@@ -98,6 +70,7 @@ clearExit m = newMaze
         updatedSpaceObjects'' =delete ((a,b-1),"|")  (getObjsFromMaze m)
         newMaze = Space {spaceArea =Just (Area (s, t) (a, b)), spaceObjects = updatedSpaceObjects''}
 
+-- | Function to delete unneeded objects from Maze
 filterEmpty:: Maze -> Maze
 filterEmpty m = newMaze
     where
@@ -105,15 +78,8 @@ filterEmpty m = newMaze
         isEmpty (a,b) = if b =="." then False else True
         newMaze = Space {spaceArea =Just (getAreaFromMaze m), spaceObjects = updatedSpaceObjects}
 
--- splitlist :: [a] -> ([a], [a])
--- splitlist [] = ([],[]) 
--- splitlist xs = splitAt ((length xs + 1) `div` 2) xs
 
--- sortAndSplit :: Ord a => [a] -> ([a],[ a])
--- sortAndSplit xs = splitlist (sort xs) 
-
-
---DoorsNum, needClose, Available
+-- | Function to recursively generate maze. Every time maze is divided into 2 and each part is generated recursively
 genMaze :: RandomGen g => Area -> g -> [String] -> [String] -> Maze
 genMaze area g unOpened opened
     | thinArea area = newButton<>(mempty { spaceArea = Just area })  
@@ -135,10 +101,10 @@ genMaze area g unOpened opened
         wall  = createVerticalWall (i,j) area door
         (left, right) = splitH i area
         (gl, gr) = split g'
-        leftMaze  = transposeMaze (genMaze (transposeArea left)  gl newUs updatedOpened) -- s3 s4)--newUs newOS)
+        leftMaze  = transposeMaze (genMaze (transposeArea left)  gl newUs updatedOpened)
         rightMaze = transposeMaze (genMaze (transposeArea right) gr newUs updatedOpened)
 
-
+-- | Custom function to prevent "Space" naming conflicts 
 toUpper :: String -> String
 toUpper s
     | s == "a" = "A"
@@ -152,16 +118,18 @@ toUpper s
     | s == "D" = "D"
     | s == "E" = "E"
 
+-- | Generation of exit coords. 
 exit :: Coords -> Maze
 exit cors = singleton cors "$"
 
+-- | Function to generate random coords in range
 generateRandomCoords :: RandomGen g => g -> Area -> (Coords, g)
 generateRandomCoords g (Area (l, b) (r, t)) = ((i,j), g'')
     where 
         (i, g')  = randomR (l,r) g
         (j, g'') = randomR (b,t) g'
 
-
+-- | Function for recursive generation of batteries.
 generateBatteriesList :: RandomGen g => g-> Maze -> [(Coords, String)] -> Int -> [(Coords, String)]
 generateBatteriesList gen m res lim
     | length res >= lim = res
@@ -170,6 +138,7 @@ generateBatteriesList gen m res lim
         where
             (ranCoords, gen') = generateRandomCoords gen (getAreaFromMaze m)
 
+-- | Function to generate batteries for appending
 addBatteries :: RandomGen g => g -> Maze -> Int -> Maze
 addBatteries g m lim = updatedMaze
     where
@@ -177,7 +146,7 @@ addBatteries g m lim = updatedMaze
         oldMazeObjects = getObjsFromMaze m
         updatedSpaceObjects = generateBatteriesList g m [] lim
 
-
+-- | Generate level with given difficulty
 generateDifficultLevel ::RandomGen g => g -> Int  -> Maze
 generateDifficultLevel g dif
     | dif < 3 = mazeModification (genMaze (Area (0,0) (10+dif, 11+dif)) g (doorsList 1) [] ) 1
@@ -190,6 +159,7 @@ generateDifficultLevel g dif
             mazeModification maze bs = addBatteries g (clearExit (filterEmpty (maze <> appendExit maze))) bs
             appendExit m = exit (getMazeSize m)
 
+-- | Function to convert maze to array
 mazeToGrid :: [(Int,Int)] -> Maze -> [[String]] -> [[String]]
 mazeToGrid [] _ res = res
 mazeToGrid (x:xs) m res
@@ -200,30 +170,30 @@ mazeToGrid (x:xs) m res
             isNotFloor = isObject x m
             Space{..} = m
 
+-- | Getter of object given coords. 
 getObjectFromCoords :: (Int,Int) -> [(Coords, String)] -> String
 getObjectFromCoords _ [] = "."
 getObjectFromCoords coords ((c, o):xs)
     | coords == c = o
     | otherwise = getObjectFromCoords coords xs
 
+-- | Getter of area given maze.
 getAreaFromMaze :: Maze -> Area
 getAreaFromMaze Space {..} = case spaceArea of
                                 Just value -> value
                                 Nothing    ->  Area (0,0) (0,0) 
 
+-- | Get maze size
 getMazeSize :: Maze -> Coords
 getMazeSize m = getSecondCoords area
     where 
         area = getAreaFromMaze m 
         getSecondCoords (Area c d) = d 
 
+-- | Getter of objects from maze.
 getObjsFromMaze :: Maze -> [(Coords,String)]
 getObjsFromMaze Space {..} = spaceObjects
 
+-- | Check if there is an object on the coords.  
 isObject:: Coords -> Maze -> Bool
 isObject coords Space{..} = any (\x -> (fst x) == coords) spaceObjects 
-
--- generateGrid width height = replicate height (replicate width "|") 
-
---addBatteries :: [String] -> [String]
---addBatteries g =
