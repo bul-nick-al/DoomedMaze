@@ -47,7 +47,7 @@ exitReached m (x, y)
 handle :: Event -> State -> State
 handle e w@(State {..}) = handle' e
  where
-  handle' (TimePassing dt) = handleState (TimePassing dt) w
+  handle' (TimePassing dt) = handleStateWithTime (TimePassing dt) w
   handle' (PointerMovement (x, _)) =
         w { playerDir = rotatedVector (-x * pi / 10) (0, 1) }
   handle' (KeyPress k) = w { keysPressed = S.insert k keysPressed }
@@ -55,8 +55,9 @@ handle e w@(State {..}) = handle' e
   handle' _ = w
 
 
-handleState :: Event -> State -> State
-handleState (TimePassing dt) w@(State {..}) =
+-- | Update the state as the time passes by
+handleStateWithTime :: Event -> State -> State
+handleStateWithTime (TimePassing dt) w@(State {..}) =
     w  { playerPos = decPos
        , openDoorsColors = newOpenDoorsColors
        , playerDir = newDir
@@ -77,6 +78,7 @@ handleState (TimePassing dt) w@(State {..}) =
           newTime = time + dt
           (newMap, pickedBattery)= checkBatteries worldMap newPos
 
+-- | Check whether the player has picked a battery and remove the battery from the mazy
 checkBatteries :: Map -> Vector -> (Map, Bool)
 checkBatteries m pos = case (isInsideBattery pos m) of
                   (True, Just coords) -> (m A.// [(coords, Floor)], True)
@@ -84,12 +86,15 @@ checkBatteries m pos = case (isInsideBattery pos m) of
 
 
 
+-- | Calculates how much energy the player has left based on the state
 calcNewEnergy :: State -> Double -> Bool -> Double
 calcNewEnergy (State {..}) dt pickedBattery
     | pickedBattery = 100
-    | showMap = energy - dt*5
+    | (showMap || S.member "Shift" keysPressed) && energy > 0 = energy - dt*5
     | length keysPressed == 0 && energy < 100 = energy + dt
     | otherwise = energy
+
+-- | Calculate in which direction the player is looking
 calcNewDir :: State -> Vector
 calcNewDir (State {..})
     | S.member "Right" keysPressed = rotatedVector (-0.05) playerDir
@@ -97,16 +102,17 @@ calcNewDir (State {..})
     | otherwise = playerDir
 
 
+-- | Makes an array of colors of open doors
 calcNewOpenDoorsColors :: State -> Vector -> Bool -> [Color]
 calcNewOpenDoorsColors (State {..}) newPos newInsideButton =
     if newInsideButton && (not insideButton)
     then getNewDoorsColors newPos worldMap openDoorsColors
     else openDoorsColors
 
-
+-- | calculates new position of the player
 calcNewPosition :: State -> Double -> Vector
 calcNewPosition (State {..}) dt
-    = playerPos `vectorSum` scaledVector (2*dt) speed
+    = playerPos `vectorSum` scaledVector (2*dt) (accelerate speed acceleration)
          where
             keyToDir k dir =
                 if S.member k keysPressed then dir else (0,0)
@@ -115,6 +121,8 @@ calcNewPosition (State {..}) dt
                                 `vectorSum` (keyToDir "S" (scaledVector (-1) playerDir))
                                 `vectorSum` (keyToDir "A" (rotatedVector (pi/2) playerDir))
                                 `vectorSum` (keyToDir "D" (rotatedVector (-pi/2) playerDir))
+            acceleration = if S.member "Shift" keysPressed then 2 else 1
+            accelerate (a, b) acc = (a * acc, b * acc)
 
 
 -- | Function to check if the movement to the new position is possible
@@ -218,42 +226,39 @@ collision2d m pos cameraDir rayDir isSeen shouldStop =
             | otherwise = Border
 
 
-
+-- | True if an object is an obstacle
 isObstacle :: GameObject -> Bool
 isObstacle Floor = False
 isObstacle (Button _) = False
 isObstacle (Battery) = False
 isObstacle _ = True
 
-isButton :: GameObject -> Bool
-isButton Floor = False
-isButton _ = True
-
-
-isBattery :: GameObject -> Bool
-isBattery Floor = False
-isBattery (Button _) = False
-isBattery _ = True
+isInteractiveObject :: GameObject -> Bool
+isInteractiveObject Floor = False
+isInteractiveObject _ = True
 
 -- | Function to draw floor
 drawFloor:: Picture
 drawFloor = translated 0 7.5 (colored black (solidRectangle sWidth (sHeight)))
   where
-    sWidth = 20.25
+    sWidth = 20.05
     sHeight = fromIntegral 15
 
 -- | Function to draw ceiling
 drawCeiling :: Picture
 drawCeiling = translated 0 (-7.5) (colored brown (solidRectangle sWidth (sHeight)))
   where
-    sWidth = 20.25
+    sWidth = 20.05
     sHeight = fromIntegral 15
 
 -- | Function to render environment given state
 render :: State -> Picture
-render state@(State{..}) = battery state
+render state@(State{..}) = batteryIndicator state
+                           & darkness state
                            & hud state {worldMap = newMap}
-                           & darkness state <> world state {worldMap = newMap} <> drawFloor <> drawCeiling
+                           & world state {worldMap = newMap}
+                           & drawFloor
+                           & drawCeiling
        where
           newMap = A.listArray (A.bounds worldMap) (concat dd)
           dd = map (\i -> map (\j ->  toNewMap (worldMap A.! (i,j))) [0..h]) [0..w]
@@ -264,86 +269,83 @@ render state@(State{..}) = battery state
 -- | Function to draw the 3d environment
 world :: State -> Picture
 world State{..} =
-  scaled ratio ratio ((renderButtons worldMap
-                                     time
-                                     openDoorsColors
-                                     playerPos
-                                     playerDir)
+  scaled ratio ratio ((renderInteractiveObjects worldMap
+                                                time
+                                                openDoorsColors
+                                                playerPos
+                                                playerDir)
                        <> (walls worldMap playerPos playerDir))
  where
   ratio = 20 / i2d screenWidth
 
--- | Function to render buttons
-renderButtons :: Map -> Double -> [Color]-> Point -> Vector -> Picture
-renderButtons m time openDoors pos dir =
+-- | Function to render buttons and batteries
+renderInteractiveObjects :: Map -> Double -> [Color]-> Point -> Vector -> Picture
+renderInteractiveObjects m time openDoors pos dir =
   pictures (map door [-halfScreenWidth .. halfScreenWidth])
  where
   door i =
-    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isButton
+    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isInteractiveObject
         x = i2d i
         y = (i2d halfScreenHeight) / distance
         color = shadowedObjectColor hitSide objType
     in case objType of
-       (Button bc) -> renderButton x y color openDoors bc
-       Battery -> colored violet $ thickPolyline 1.2 [(x, -y * (F.mod' time 1)), (x, y * (F.mod' time 1))]
+       (Button bc) -> renderButton (x, y) color openDoors bc
+       Battery -> renderBattery (x, y) time
        _ -> blank
 
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
 
-
-renderButton x y color openDoors bc = (colored color
-                                  $ thickPolygon 0.3
-                                                 [(x-0.5, -(y/5)),
-                                                  (x+0.5, -(y/5)),
-                                                  (x+0.5, (y/5)),
-                                                  (x-0.5, (y/5))])
-                                  <> (colored (getSecondColor bc)
-                                              $ thickPolyline 1.1
-                                                              [(x, -(y/5)),
-                                                              (x, (y/5))])
+-- | Function to render a button
+renderButton :: Vector -> Color -> [Color] -> Color -> Picture
+renderButton (x, y) color openDoors bc
+    = (colored color
+      $ thickPolygon 0.3
+                     [(x-0.5, -(y/5)),
+                      (x+0.5, -(y/5)),
+                      (x+0.5, (y/5)),
+                      (x-0.5, (y/5))])
+      <> (colored (getSecondColor bc)
+                  $ thickPolyline 1.1
+                                  [(x, -(y/5)),
+                                  (x, (y/5))])
     where
         getSecondColor c | c `elem` openDoors = white
                            | otherwise = black
 
-renderBattery x y time = colored green
-                                  $ thickPolyline 1.2 [(x, -y/5), (x, y/5)]
---    where
---        c = time - (i2d (floor time))
 
--- | Function to render walls
-renderBatteries :: Map -> Point -> Vector -> Picture
-renderBatteries m pos dir =
-  pictures (map wallSlice [-halfScreenWidth .. halfScreenWidth])
- where
-  wallSlice i =
-    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isBattery
-        x = i2d i
-        y = (i2d halfScreenHeight) / distance
-        color = shadowedObjectColor hitSide objType
-    in case objType of
-       (Button _) -> blank
-       _ -> colored color $ thickPolyline 1.2 [(x, -y), (x, y)]
-  rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
+-- | Renders a pulsating violate object (which is the battery)
+renderBattery :: Vector -> Double -> Picture
+renderBattery (x, y) time
+    = colored violet
+    $ thickPolyline 1.2 [(x, -y * (F.mod' time 1))
+                        , (x, y * (F.mod' time 1))]
 
---darkness :: State -> Picture
---darkness _ = blank
 
-charger ::  Picture
-charger = colored (RGBA 0 0 0 (0.5)) $ solidCircle 1
-
+-- | Makes screen darker depending on the amount of energy
 darkness :: State -> Picture
 darkness State{..} = (colored (RGBA 0 0 0 (alpha)) $ solidRectangle 20.25 30)
     where
         alpha = (100 - energy)/100
 
-battery :: State -> Picture
-battery State{..} = translated 9 7 (thickRectangle 0.05 1 3
-                    <> translated 0 (- (3 - shift) / 2)(colored (translucent color) (solidRectangle 1 shift)))
+
+-- | Function to render the battery indicator that shows how much energy is left
+batteryIndicator :: State -> Picture
+batteryIndicator State{..} = translated 9 7 (thickRectangle 0.05 1 3
+                    <> translated 0 (- (3 - shift) / 2)
+                                  (colored (translucent color)
+                                           (solidRectangle 1 shift)))
                     where
                         shift = (3 * energy / 100.0)
                         color = if energy < 20 then red else green
 
+
+-- | Shows the number of the current level
+drawLevelNumber :: Int -> Picture
+drawLevelNumber number
+    = colored white
+              (translated (-8) 8
+              (lettering (fromString ("Level " <> (show number)))))
 
 -- | Function to render walls
 walls :: Map -> Point -> Vector -> Picture
@@ -405,11 +407,14 @@ data ActivityOf world = ActivityOf
 data GameState world = Running world | StartScreen | Paused world
 data WithLevel world = WithLevel Int world
 
+-- | The starting screen of the game
 startScreen :: Picture
 startScreen = lettering "Press Enter to start"
 
+-- | The pause screen of the game
 pauseScreen :: Picture
-pauseScreen = lettering "Press Enter to continue \n press ESC to restart"
+pauseScreen = translated 0 1 (lettering  "Press Enter to continue")
+              <> (translated 0 (-1) (lettering "Press ESC to restart"))
 
 
 -- | Mapping arguments to activityOf function
@@ -450,7 +455,7 @@ withManyLevels
                 = if isLevelComplete state
                   then WithLevel (levelNumber + 1) (toWorld (genLev gen (levelNumber + 1)))
                   else WithLevel levelNumber (handle s state)
-            draw' (WithLevel levelNumber state) = draw state
+            draw' (WithLevel levelNumber state) = drawLevelNumber levelNumber <> (draw state)
 
 
 -- | Loading level into the state

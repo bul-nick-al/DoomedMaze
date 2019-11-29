@@ -197,3 +197,33 @@ getObjsFromMaze Space {..} = spaceObjects
 -- | Check if there is an object on the coords.  
 isObject:: Coords -> Maze -> Bool
 isObject coords Space{..} = any (\x -> (fst x) == coords) spaceObjects 
+
+generateRow :: Int -> Int -> Int -> String
+generateRow index width height
+    | isEven index = concat $ replicate width "|"
+    | otherwise = "|" ++ repled ++ ".|"
+        where
+            repled = (concat $ replicate ((width - 2) `div` 2 ) ".|" )
+
+isEven :: Int -> Bool
+isEven n = n `rem` 2 == 0
+
+
+splitEvery ::Int -> [a] -> [[a]]
+splitEvery _ [] = []
+splitEvery n list = first : (splitEvery n rest)
+    where
+    (first,rest) = splitAt n list
+
+joinString :: [[String]] -> String
+joinString [] = ""
+joinString (x:xs) = x!!0 ++ joinString xs
+
+
+addBorders :: [String] -> [String]
+addBorders curMap = map verticalBorder (lowerHorizontalBorder ++ curMap ++ upperHorizontalBorder)
+  where
+    upperHorizontalBorder = [concat $ ((replicate (width-1) "|")++["$"] )]
+    lowerHorizontalBorder = [concat $ (["%"]++(replicate (width-1) "|"))]
+    verticalBorder x =  "|" ++ x ++ "|"
+    width = length (head curMap)
