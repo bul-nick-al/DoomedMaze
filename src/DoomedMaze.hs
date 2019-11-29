@@ -9,7 +9,7 @@ import CodeWorld
 import Maps
 import Consts
 import Vectors
-import Doors
+import InteractiveObjects
 import qualified Data.Array as A
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -36,12 +36,9 @@ data State = State
 
 -- | Function to check if player reached exit of this level
 exitReached :: Map -> Vector -> Bool
-exitReached m (x, y)
-    = candidate1 == Exit || candidate2 == Exit
+exitReached m (x, y) = result
     where
-        candidate1 = m A.! (floor x, floor y)
-        candidate2 = m A.! (ceiling (x - 0.99), ceiling (y - 0.99))
-
+        (result, _) = isInsideExit (x, y) m
 
 -- | Function to handle users interactions
 handle :: Event -> State -> State
@@ -69,16 +66,18 @@ handleStateWithTime (TimePassing dt) w@(State {..}) =
        }
         where
           newPos = calcNewPosition w dt
-          newOpenDoorsColors = calcNewOpenDoorsColors w newPos newInsideButton
+          newOpenDoorsColors = calcNewOpenDoorsColors w
+                                                      buttonPos
+                                                      newInsideButton
           newDir = calcNewDir w
           newEnergy = calcNewEnergy w dt pickedBattery
           newShowMap = (S.member "M" keysPressed)
           decPos = if (canMove newPos newOpenDoorsColors worldMap)
                    then newPos
                    else playerPos
-          newInsideButton = isInsideButton newPos worldMap
+          (newInsideButton, buttonPos) = isInsideButton newPos worldMap
           newTime = time + dt
-          (newMap, pickedBattery)= checkBatteries worldMap newPos
+          (newMap, pickedBattery) = checkBatteries worldMap newPos
 
 -- | Check whether the player has picked a battery and remove the battery from the mazy
 checkBatteries :: Map -> Vector -> (Map, Bool)
@@ -108,24 +107,32 @@ calcNewDir (State {..})
 
 
 -- | Makes an array of colors of open doors
-calcNewOpenDoorsColors :: State -> Vector -> Bool -> [Color]
+calcNewOpenDoorsColors :: State -> Maybe (Int, Int) -> Bool -> [Color]
 calcNewOpenDoorsColors (State {..}) newPos newInsideButton =
-    if newInsideButton && (not insideButton)
-    then getNewDoorsColors newPos worldMap openDoorsColors
-    else openDoorsColors
+    case (newPos, insideButton) of
+    ((Just pos), False) -> getNewDoorsColors pos worldMap openDoorsColors
+    _ -> openDoorsColors
 
 -- | calculates new position of the player
 calcNewPosition :: State -> Double -> Vector
 calcNewPosition (State {..}) dt
-    = playerPos `vectorSum` scaledVector (2*dt) (accelerate speed acceleration)
+    = playerPos `vectorSum` scaledVector
+                            (2*dt)
+                            (accelerate speed acceleration)
          where
             keyToDir k dir =
                 if S.member k keysPressed then dir else (0,0)
             speed = normalized $
-                                (keyToDir "W" playerDir)
-                                `vectorSum` (keyToDir "S" (scaledVector (-1) playerDir))
-                                `vectorSum` (keyToDir "A" (rotatedVector (pi/2) playerDir))
-                                `vectorSum` (keyToDir "D" (rotatedVector (-pi/2) playerDir))
+                    (keyToDir "W" playerDir)
+                    `vectorSum` (keyToDir "S"
+                                          (scaledVector (-1)
+                                                        playerDir))
+                    `vectorSum` (keyToDir "A"
+                                          (rotatedVector (pi/2)
+                                                         playerDir))
+                    `vectorSum` (keyToDir "D"
+                                          (rotatedVector (-pi/2)
+                                                         playerDir))
             acceleration = if S.member "Shift" keysPressed then 2 else 1
             accelerate (a, b) acc = (a * acc, b * acc)
 
@@ -145,8 +152,8 @@ canMove (x,y) openDoorsColors m = canMove' candidate1 && canMove' candidate2
         canMove' (Button _) = True
         canMove' Battery = True
         getCandidate coord
-                                 | coord `elem` (A.indices m) = m A.! coord
-                                 | otherwise = Border
+                   | coord `elem` (A.indices m) = m A.! coord
+                   | otherwise = Border
 
 -- | Side of ray hit
 data HitSide = Inside | N | S | E | W
@@ -207,29 +214,6 @@ collision m pos cameraDir rayDir isSeen =
             | coord `elem` (A.indices m) = m A.! coord
             | otherwise = Border
 
--- | Get collision with object data
-collision2d
-  :: Map
-  -> Vector -- starting point
-  -> Vector -- camera direction
-  -> Vector -- ray direction
-  -> (GameObject -> Bool) -- the objects to save
-  -> (GameObject -> Bool) -- stopping object
-  -> [(HitSide, GameObject, Double {- distance -})]
-collision2d m pos cameraDir rayDir isSeen shouldStop =
-  filter isSeen'
-  $ takeWhile shouldStop'
-  $ map convert
-  $ cellsVisitedByRay pos rayDir
- where
-  convert (side, coord, d) =
-    (side, getObj coord, d * cos (angleBetween cameraDir rayDir))
-  isSeen' (_, gameObj, _) = isSeen gameObj
-  shouldStop' (_, gameObj, _) = shouldStop gameObj
-  getObj coord
-            | coord `elem` (A.indices m) = m A.! coord
-            | otherwise = Border
-
 
 -- | True if an object is an obstacle
 isObstacle :: GameObject -> Bool
@@ -244,17 +228,25 @@ isInteractiveObject _ = True
 
 -- | Function to draw floor
 drawFloor:: Picture
-drawFloor = translated 0 7.5 (colored black (solidRectangle sWidth (sHeight)))
+drawFloor = translated 0
+                       (sHeight / 2)
+                       (colored black
+                                (solidRectangle sWidth
+                                                sHeight))
   where
-    sWidth = 20.05
-    sHeight = fromIntegral 15
+    sWidth = width
+    sHeight = height / 2
 
 -- | Function to draw ceiling
 drawCeiling :: Picture
-drawCeiling = translated 0 (-7.5) (colored brown (solidRectangle sWidth (sHeight)))
+drawCeiling = translated 0
+                         (- sHeight / 2)
+                         (colored brown
+                                  (solidRectangle sWidth
+                                                  sHeight))
   where
-    sWidth = 20.05
-    sHeight = fromIntegral 15
+    sWidth = width
+    sHeight = height / 2
 
 -- | Function to render environment given state
 render :: State -> Picture
@@ -266,8 +258,12 @@ render state@(State{..}) = batteryIndicator state
                            & drawCeiling
        where
           newMap = A.listArray (A.bounds worldMap) (concat dd)
-          dd = map (\i -> map (\j ->  toNewMap (worldMap A.! (i,j))) [0..h]) [0..w]
-          toNewMap (Door color) = if color `elem` openDoorsColors then Floor else (Door color)
+          dd = map (\i -> map
+                       (\j ->
+                         toNewMap (worldMap A.! (i,j))) [0..h]) [0..w]
+          toNewMap (Door color) = if color `elem` openDoorsColors
+                                  then Floor
+                                  else (Door color)
           toNewMap x = x
           ((0,0), (w,h)) = A.bounds worldMap
 
@@ -284,12 +280,19 @@ world State{..} =
   ratio = 20 / i2d screenWidth
 
 -- | Function to render buttons and batteries
-renderInteractiveObjects :: Map -> Double -> [Color]-> Point -> Vector -> Picture
+renderInteractiveObjects
+    :: Map
+    -> Double
+    -> [Color]
+    -> Point
+    -> Vector
+    -> Picture
 renderInteractiveObjects m time openDoors pos dir =
   pictures (map door [-halfScreenWidth .. halfScreenWidth])
  where
   door i =
-    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isInteractiveObject
+    let (hitSide, objType, distance)
+          = collision m pos dir (rayDir i) isInteractiveObject
         x = i2d i
         y = (i2d halfScreenHeight) / distance
         color = shadowedObjectColor hitSide objType
@@ -329,9 +332,10 @@ renderBattery (x, y) time
 
 -- | Makes screen darker depending on the amount of energy
 darkness :: State -> Picture
-darkness State{..} = (colored (RGBA 0 0 0 (alpha)) $ solidRectangle 20.25 30)
+darkness State{..} = (colored (RGBA 0 0 0 (alpha))
+                              $ solidRectangle width height)
     where
-        alpha = (100 - energy)/100
+        alpha = (batteryMax - energy)/batteryMax
 
 
 -- | Function to render the battery indicator that shows how much energy is left
@@ -367,7 +371,8 @@ walls m pos dir =
         color = shadowedObjectColor hitSide objType
     in case objType of
        (Button _) -> blank
-       _ -> colored color $ thickPolyline 1.15 [(x, -y), (x, y)]
+       _ -> colored color $ thickPolyline stripeWidth
+                                          [(x, -y), (x, y)]
   rayDir i = rotatedVector (-fov * i2d i / i2d screenWidth) dir
 
 -- | Function to render primitive shadows based on the side where rays hit
@@ -404,13 +409,13 @@ minimap State{..} =
              $ drawCell (worldMap A.! (i,j))
   player = uncurry translated playerPos
            $ colored red
-           $ (solidCircle 0.5 & polyline [(0,0), playerDir])
-  drawCell (Button color) = colored (objectColor (Button color))
-                                    $ solidCircle 0.5
+           $ (solidCircle cellRad & polyline [(0,0), playerDir])
+  drawCell (Button color) = (colored (objectColor (Button color))
+                                    $ solidCircle cellRad)
                           <> (colored white
-                                    $ solidRectangle 1.05 1.05)
+                                    $ solidRectangle cellSize cellSize)
   drawCell obj = colored (objectColor obj)
-                         $ solidRectangle 1.05 1.05
+                         $ solidRectangle cellSize cellSize
 
 
 -- | Wrapper for activityOf args
@@ -490,7 +495,7 @@ levelToState Level{..} = State { worldMap = parseMap levelMap
                                 , playerDir = initialDir
                                 , keysPressed = S.empty
                                 , showMap = False
-                                , energy = 100.0
+                                , energy = batteryMax
                                 , time = 0.0
                                 }
 

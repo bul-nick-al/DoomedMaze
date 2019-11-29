@@ -1,7 +1,7 @@
 {- Constants -}
 module Consts where
 
--- | Screen dimensions
+-- | Screen dimensions in pixelx
 screenWidth, screenHeight :: Int
 screenWidth = 210
 screenHeight = 180
@@ -22,5 +22,17 @@ batteryMax, batteryMin :: Double
 batteryMax = 100.0
 batteryMin = 0.0
 
+-- | How fast the battery loses energy
 dischargingRate :: Double
 dischargingRate = 5.0
+
+-- | constants for minimap
+cellRad, cellSize, stripeWidth :: Double
+cellSize = 1.05
+stripeWidth = 1.15
+cellRad = 0.5
+
+-- | Screen dimensions in CodeWorld values
+width, height :: Double
+width = 20.05
+height = 30

@@ -11,9 +11,18 @@ import MazeGenerator
 import Space
 import System.Random
 
-data GameObject = Wall | Door Color | Button Color | Floor| Entrance | Exit | Battery |Border deriving (Show, Eq)
-type Map = A.Array (Int, Int) GameObject
+-- | Data type describing all possible objects in the game
+data GameObject = Wall
+                | Door Color
+                | Button Color
+                | Floor
+                | Entrance
+                | Exit
+                | Battery
+                | Border
+        deriving (Show, Eq)
 
+type Map = A.Array (Int, Int) GameObject
 
 -- | Level data type
 data Level = Level {
@@ -57,7 +66,8 @@ colorObject 'E' = Button azure
 colorObject _ = Floor
 
 
--- | A list of all level maps.
+-- | A list of all level maps. Legacy, isn't used anymore. Left here to
+-- | tribute good old days
 levels :: [Level]
 levels = [
     level1,
