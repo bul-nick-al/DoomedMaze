@@ -73,25 +73,30 @@ handleStateWithTime (TimePassing dt) w@(State {..}) =
           newDir = calcNewDir w
           newEnergy = calcNewEnergy w dt pickedBattery
           newShowMap = (S.member "M" keysPressed)
-          decPos = if (canMove newPos newOpenDoorsColors worldMap) then newPos else playerPos
+          decPos = if (canMove newPos newOpenDoorsColors worldMap)
+                   then newPos
+                   else playerPos
           newInsideButton = isInsideButton newPos worldMap
           newTime = time + dt
           (newMap, pickedBattery)= checkBatteries worldMap newPos
 
 -- | Check whether the player has picked a battery and remove the battery from the mazy
 checkBatteries :: Map -> Vector -> (Map, Bool)
-checkBatteries m pos = case (isInsideBattery pos m) of
-                  (True, Just coords) -> (m A.// [(coords, Floor)], True)
-                  _ -> (m, False)
+checkBatteries m pos
+    = case (isInsideBattery pos m) of
+      (True, Just coords) -> (m A.// [(coords, Floor)], True)
+      _ -> (m, False)
 
 
 
 -- | Calculates how much energy the player has left based on the state
 calcNewEnergy :: State -> Double -> Bool -> Double
 calcNewEnergy (State {..}) dt pickedBattery
-    | pickedBattery = 100
-    | (showMap || S.member "Shift" keysPressed) && energy > 0 = energy - dt*5
-    | length keysPressed == 0 && energy < 100 = energy + dt
+    | pickedBattery = batteryMax
+    | (showMap || S.member "Shift" keysPressed)
+      && energy > batteryMin = energy - dt * dischargingRate
+    | length keysPressed == 0
+      && energy < batteryMax = energy + dt
     | otherwise = energy
 
 -- | Calculate in which direction the player is looking
@@ -331,8 +336,9 @@ darkness State{..} = (colored (RGBA 0 0 0 (alpha)) $ solidRectangle 20.25 30)
 
 -- | Function to render the battery indicator that shows how much energy is left
 batteryIndicator :: State -> Picture
-batteryIndicator State{..} = translated 9 7 (thickRectangle 0.05 1 3
-                    <> translated 0 (- (3 - shift) / 2)
+batteryIndicator State{..}
+    = translated 9 7 (thickRectangle 0.05 1 3
+                      <> translated 0 ((shift - 3) / 2)
                                   (colored (translucent color)
                                            (solidRectangle 1 shift)))
                     where
@@ -347,15 +353,17 @@ drawLevelNumber number
               (translated (-8) 8
               (lettering (fromString ("Level " <> (show number)))))
 
+
 -- | Function to render walls
 walls :: Map -> Point -> Vector -> Picture
 walls m pos dir =
   pictures (map wallSlice [-halfScreenWidth .. halfScreenWidth])
  where
   wallSlice i =
-    let (hitSide, objType, distance) = collision m pos dir (rayDir i) isObstacle
-        x = i2d i
-        y = (i2d halfScreenHeight) / distance
+    let (hitSide, objType, distance)
+              = collision m pos dir (rayDir i) isObstacle
+        x     = i2d i
+        y     = (i2d halfScreenHeight) / distance
         color = shadowedObjectColor hitSide objType
     in case objType of
        (Button _) -> blank
@@ -364,22 +372,27 @@ walls m pos dir =
 
 -- | Function to render primitive shadows based on the side where rays hit
 shadowedObjectColor :: HitSide -> GameObject -> Color
-shadowedObjectColor hitSide objType = colorModifier hitSide (objectColor objType)
- where
-  colorModifier E = dark
-  colorModifier W = dark
-  colorModifier _ = id
+shadowedObjectColor hitSide objType
+    = colorModifier hitSide (objectColor objType)
+        where
+         colorModifier E = dark
+         colorModifier W = dark
+         colorModifier _ = id
 
 -- | Function to render hud
 hud :: State -> Picture
-hud state@(State {..}) = if showMap
-                         then translated (-w'/2) (-h'/2) $ scaled scale scale $ minimap state
-                         else blank
-                            where
-                               (_, (w, h)) = A.bounds worldMap
-                               w' = i2d w * scale
-                               h' = i2d h * scale
-                               scale = 0.5
+hud state@(State {..})
+    = if showMap
+      then translated (-w'/2)
+                      (-h'/2) $ scaled scale
+                                       scale
+                                       $ minimap state
+      else blank
+         where
+            (_, (w, h)) = A.bounds worldMap
+            w' = i2d w * scale
+            h' = i2d h * scale
+            scale = 0.5
 
 -- | Function to render minimap
 minimap :: State -> Picture
@@ -392,9 +405,12 @@ minimap State{..} =
   player = uncurry translated playerPos
            $ colored red
            $ (solidCircle 0.5 & polyline [(0,0), playerDir])
-  drawCell (Button color) = (colored (objectColor (Button color)) $ solidCircle 0.5)
-                            <> (colored white $ solidRectangle 1.05 1.05)
-  drawCell obj = colored (objectColor obj) $ solidRectangle 1.05 1.05
+  drawCell (Button color) = colored (objectColor (Button color))
+                                    $ solidCircle 0.5
+                          <> (colored white
+                                    $ solidRectangle 1.05 1.05)
+  drawCell obj = colored (objectColor obj)
+                         $ solidRectangle 1.05 1.05
 
 
 -- | Wrapper for activityOf args
@@ -426,17 +442,17 @@ withStartScreen :: ActivityOf s -> ActivityOf (GameState s)
 withStartScreen (ActivityOf state0 handle draw)
   = ActivityOf state0' handle' draw'
   where
-    state0' = StartScreen
+    state0'                                = StartScreen
     handle' (KeyPress "Enter") StartScreen = Running state0
-    handle' (KeyPress "Esc") (Running s) = Paused s
-    handle' (KeyPress "Enter") (Paused s) = Running s
-    handle' (KeyPress "Esc") (Paused s) = Running state0
-    handle' _              StartScreen = StartScreen
-    handle' _              (Paused s) = Paused s
-    handle' e              (Running s) = Running (handle e s)
-    draw' (Paused s) = pauseScreen
-    draw' StartScreen = startScreen
-    draw' (Running s) = draw s
+    handle' (KeyPress "Esc")   (Running s) = Paused s
+    handle' (KeyPress "Enter") (Paused s)  = Running s
+    handle' (KeyPress "Esc")   (Paused s)  = Running state0
+    handle' _                  StartScreen = StartScreen
+    handle' _                  (Paused s)  = Paused s
+    handle' e                  (Running s) = Running (handle e s)
+    draw'   (Paused s)                     = pauseScreen
+    draw'   StartScreen                    = startScreen
+    draw'   (Running s)                    = draw s
 
 -- | Turn an interactive program into one with multiple levels.
 withManyLevels
@@ -447,15 +463,22 @@ withManyLevels
     -> ActivityOf world -- ^ 'interactionOf'.
     -> ActivityOf (WithLevel world)
 withManyLevels
-    gen genLev toWorld isLevelComplete (ActivityOf state0 handle draw)
+    gen
+    genLev
+    toWorld
+    isLevelComplete
+    (ActivityOf state0 handle draw)
     = ActivityOf state0' handle' draw'
         where
             state0' = WithLevel 0 state0
             handle' s (WithLevel levelNumber state)
                 = if isLevelComplete state
-                  then WithLevel (levelNumber + 1) (toWorld (genLev gen (levelNumber + 1)))
+                  then WithLevel (levelNumber + 1)
+                                 (toWorld (genLev gen
+                                                  (levelNumber + 1)))
                   else WithLevel levelNumber (handle s state)
-            draw' (WithLevel levelNumber state) = drawLevelNumber levelNumber <> (draw state)
+            draw' (WithLevel levelNumber state)
+                = drawLevelNumber levelNumber <> (draw state)
 
 
 -- | Loading level into the state
@@ -505,20 +528,26 @@ getSplitNum:: Area -> Int
 getSplitNum (Area (x1, y1) (x2,y2)) = y2 + 1
 
 generateLevel :: RandomGen g => g -> Int -> Level
-generateLevel gen lvlNum = Level {
-
-            levelMap = (addBorders stuff),
-            openColors = [],
-            initialPos = (1.5,1.5),
-            initialDir = (0.5, 0.5)}
+generateLevel gen lvlNum
+    = Level {
+              levelMap = (addBorders stuff),
+              openColors = [],
+              initialPos = (1.5,1.5),
+              initialDir = (0.5, 0.5)
+             }
   where
     maze = generateDifficultLevel gen lvlNum
     area = getAreaFromMaze maze
     inds = generateIndexRange area
-    stuff = map joinString (splitEvery (getSplitNum area) (mazeToGrid inds maze []))--
+    stuff = map joinString (splitEvery (getSplitNum area)
+                                       (mazeToGrid inds maze []))
 
 
 game :: IO ()
 game = do
   g <- newStdGen
-  runInteraction (withStartScreen (withManyLevels g generateLevel levelToState isLevelComplete (coreActivity g)))
+  runInteraction (withStartScreen (withManyLevels g
+                                                  generateLevel
+                                                  levelToState
+                                                  isLevelComplete
+                                                  (coreActivity g)))

@@ -15,3 +15,12 @@ fov = pi / 4
 halfScreenWidth, halfScreenHeight :: Int
 halfScreenWidth = screenWidth `div` 2
 halfScreenHeight = screenHeight `div` 2
+
+
+-- | Battery
+batteryMax, batteryMin :: Double
+batteryMax = 100.0
+batteryMin = 0.0
+
+dischargingRate :: Double
+dischargingRate = 5.0
