@@ -525,13 +525,8 @@ coreActivity gen = ActivityOf
 
 {- MAIN -}
 
-getLevelArr :: Level -> [String]
-getLevelArr Level {..} = levelMap
 
-
-getSplitNum:: Area -> Int
-getSplitNum (Area (x1, y1) (x2,y2)) = y2 + 1
-
+-- | Function to generate level with given difficulty
 generateLevel :: RandomGen g => g -> Int -> Level
 generateLevel gen lvlNum
     = Level {

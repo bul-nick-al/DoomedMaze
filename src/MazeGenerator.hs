@@ -53,7 +53,7 @@ generateButtonRandomly g (Area (l, b) (r, t)) obj = (maze, g'')
     where 
         (i, g')  = randomR (l,r) g
         (j, g'') = randomR (b,t) g'
-        maze = prnt(singleton ( i,j) obj)
+        maze = singleton ( i,j) obj
 
 
 deleteObjFromList :: [String] -> String -> [String]
@@ -198,28 +198,20 @@ getObjsFromMaze Space {..} = spaceObjects
 isObject:: Coords -> Maze -> Bool
 isObject coords Space{..} = any (\x -> (fst x) == coords) spaceObjects 
 
-generateRow :: Int -> Int -> Int -> String
-generateRow index width height
-    | isEven index = concat $ replicate width "|"
-    | otherwise = "|" ++ repled ++ ".|"
-        where
-            repled = (concat $ replicate ((width - 2) `div` 2 ) ".|" )
 
-isEven :: Int -> Bool
-isEven n = n `rem` 2 == 0
-
-
+-- | Function to split array into subarrays every n els. 
 splitEvery ::Int -> [a] -> [[a]]
 splitEvery _ [] = []
 splitEvery n list = first : (splitEvery n rest)
     where
     (first,rest) = splitAt n list
 
+-- | Function for transforming Array of Strings to a single string
 joinString :: [[String]] -> String
 joinString [] = ""
 joinString (x:xs) = x!!0 ++ joinString xs
 
-
+-- | Funtion to add borders to string representation of Maze
 addBorders :: [String] -> [String]
 addBorders curMap = map verticalBorder (lowerHorizontalBorder ++ curMap ++ upperHorizontalBorder)
   where

@@ -89,4 +89,6 @@ generateIndexRange :: Area -> [Coords]
 generateIndexRange (Area (x1, y1) (x2,y2)) = 
     [(i,j) | i <- [(-x1)..x2], j <- [(-y1)..y2]]
 
-
+-- | Function for splitting area for rendering
+getSplitNum:: Area -> Int
+getSplitNum (Area (x1, y1) (x2,y2)) = y2 + 1
