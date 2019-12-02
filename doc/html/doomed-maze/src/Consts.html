@@ -1,0 +1,38 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- Constants -}</span><span>
+</span><a name="line-2"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Consts</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-3"></a><span>
+</span><a name="line-4"></a><span class="hs-comment">-- | Screen dimensions in pixelx</span><span>
+</span><a name="line-5"></a><span class="hs-identifier">screenWidth</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">screenHeight</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Int</span><span>
+</span><a name="line-6"></a><a name="screenWidth"><a href="Consts.html#screenWidth"><span class="hs-identifier">screenWidth</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">210</span><span>
+</span><a name="line-7"></a><a name="screenHeight"><a href="Consts.html#screenHeight"><span class="hs-identifier">screenHeight</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">180</span><span>
+</span><a name="line-8"></a><span>
+</span><a name="line-9"></a><span class="hs-comment">-- | Field of view</span><span>
+</span><a name="line-10"></a><span class="hs-identifier">fov</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Double</span><span>
+</span><a name="line-11"></a><a name="fov"><a href="Consts.html#fov"><span class="hs-identifier">fov</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-var">pi</span><span> </span><span class="hs-operator hs-var">/</span><span> </span><span class="hs-number">4</span><span>
+</span><a name="line-12"></a><span>
+</span><a name="line-13"></a><span class="hs-comment">-- | Screen dimensions halved. </span><span>
+</span><a name="line-14"></a><span class="hs-comment">--    (Used due to other coordinate system in CodeWorld)</span><span>
+</span><a name="line-15"></a><span class="hs-identifier">halfScreenWidth</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">halfScreenHeight</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Int</span><span>
+</span><a name="line-16"></a><a name="halfScreenWidth"><a href="Consts.html#halfScreenWidth"><span class="hs-identifier">halfScreenWidth</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Consts.html#screenWidth"><span class="hs-identifier hs-var">screenWidth</span></a><span> </span><span class="hs-special">`</span><span class="hs-identifier hs-var">div</span><span class="hs-special">`</span><span> </span><span class="hs-number">2</span><span>
+</span><a name="line-17"></a><a name="halfScreenHeight"><a href="Consts.html#halfScreenHeight"><span class="hs-identifier">halfScreenHeight</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a href="Consts.html#screenHeight"><span class="hs-identifier hs-var">screenHeight</span></a><span> </span><span class="hs-special">`</span><span class="hs-identifier hs-var">div</span><span class="hs-special">`</span><span> </span><span class="hs-number">2</span><span>
+</span><a name="line-18"></a><span>
+</span><a name="line-19"></a><span>
+</span><a name="line-20"></a><span class="hs-comment">-- | Battery</span><span>
+</span><a name="line-21"></a><span class="hs-identifier">batteryMax</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">batteryMin</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Double</span><span>
+</span><a name="line-22"></a><a name="batteryMax"><a href="Consts.html#batteryMax"><span class="hs-identifier">batteryMax</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">100.0</span><span>
+</span><a name="line-23"></a><a name="batteryMin"><a href="Consts.html#batteryMin"><span class="hs-identifier">batteryMin</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">0.0</span><span>
+</span><a name="line-24"></a><span>
+</span><a name="line-25"></a><span class="hs-comment">-- | How fast the battery loses energy</span><span>
+</span><a name="line-26"></a><span class="hs-identifier">dischargingRate</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Double</span><span>
+</span><a name="line-27"></a><a name="dischargingRate"><a href="Consts.html#dischargingRate"><span class="hs-identifier">dischargingRate</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">5.0</span><span>
+</span><a name="line-28"></a><span>
+</span><a name="line-29"></a><span class="hs-comment">-- | constants for minimap</span><span>
+</span><a name="line-30"></a><span class="hs-identifier">cellRad</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">cellSize</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">stripeWidth</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Double</span><span>
+</span><a name="line-31"></a><a name="cellSize"><a href="Consts.html#cellSize"><span class="hs-identifier">cellSize</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">1.05</span><span>
+</span><a name="line-32"></a><a name="stripeWidth"><a href="Consts.html#stripeWidth"><span class="hs-identifier">stripeWidth</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">1.15</span><span>
+</span><a name="line-33"></a><a name="cellRad"><a href="Consts.html#cellRad"><span class="hs-identifier">cellRad</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">0.5</span><span>
+</span><a name="line-34"></a><span>
+</span><a name="line-35"></a><span class="hs-comment">-- | Screen dimensions in CodeWorld values</span><span>
+</span><a name="line-36"></a><span class="hs-identifier">width</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">height</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier hs-type">Double</span><span>
+</span><a name="line-37"></a><a name="width"><a href="Consts.html#width"><span class="hs-identifier">width</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">20.05</span><span>
+</span><a name="line-38"></a><a name="height"><a href="Consts.html#height"><span class="hs-identifier">height</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">30</span></pre></body></html>
